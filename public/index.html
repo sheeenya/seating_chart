@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Seating Chart</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Outfit:wght@400;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M4 18V21M20 18V21M3 6V16C3 17.1046 3.89543 18 5 18H19C20.1046 18 21 17.1046 21 16V6C21 4.89543 20.1046 4 19 4H5C3.89543 4 3 4.89543 3 6Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    <path d="M10 18V12H14V18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <h1>Office Seat Map</h1>
+            </div>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="名前で検索...">
+                <button id="search-btn" class="search-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+                <div id="search-results" class="search-results hidden"></div>
+            </div>
+
+            <div class="status-indicator">
+                <span class="dot"></span>
+                <span id="connection-status">Live</span>
+            </div>
+        </header>
+
+        <main>
+            <div class="map-wrapper" id="map-wrapper">
+                <div class="room-layout" id="seat-grid">
+                    <!-- Seats will be injected here via JS -->
+                </div>
+            </div>
+
+            <div class="zoom-controls">
+                <button id="zoom-in" title="Zoom In">+</button>
+                <button id="reset-zoom" title="Reset View">⟲</button>
+                <button id="zoom-out" title="Zoom Out">-</button>
+            </div>
+        </main>
+
+        <!-- Name Input Modal -->
+        <div id="modal-overlay" class="hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 id="modal-title">Seat Selection</h2>
+                    <button class="close-btn" id="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-label">着席する方のお名前を入力してください</p>
+                    <input type="text" id="user-name-input" placeholder="例: 山田 太郎" autofocus>
+                    <input type="hidden" id="selected-seat-id">
+                </div>
+                <div class="modal-footer">
+                    <button id="leave-seat-btn" class="secondary-btn hidden">離席する</button>
+                    <button id="confirm-seat-btn" class="primary-btn">着席する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
