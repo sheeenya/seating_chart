@@ -32,6 +32,14 @@ const seatPrefixInput = document.getElementById('seat-prefix-input');
 const seatNumberInput = document.getElementById('seat-number-input');
 const resetSeatsBtn = document.getElementById('reset-seats-btn');
 
+// Admin password modal elements
+const adminPasswordOverlay = document.getElementById('admin-password-overlay');
+const adminPasswordInput = document.getElementById('admin-password-input');
+const adminPasswordError = document.getElementById('admin-password-error');
+const closeAdminModalBtn = document.getElementById('close-admin-modal');
+const cancelAdminBtn = document.getElementById('cancel-admin-btn');
+const confirmAdminBtn = document.getElementById('confirm-admin-btn');
+
 // Tool buttons will be created dynamically or use existing elements
 
 // State
@@ -92,6 +100,7 @@ function init() {
 
     setupZoomPan();
     setupEditMode();
+    setupAdminMode();
     // setupDebugControls(); // Disabled for production
 
     closeModalBtn.addEventListener('click', closeModal);
@@ -212,6 +221,83 @@ function updateDebugDisplay() {
 
 async function loadAllData() {
     await Promise.all([fetchLayout(), fetchOccupancy()]);
+}
+
+// ---------------------------------------------------------
+// Admin Mode (Hidden Edit Button)
+// ---------------------------------------------------------
+let adminModeEnabled = false;
+const ADMIN_PASSWORD = '6901';
+
+function setupAdminMode() {
+    // Ctrl+Shift+E でパスワード入力モーダルを表示
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+            e.preventDefault();
+            if (adminModeEnabled) {
+                // 既に有効な場合は無効化
+                disableAdminMode();
+            } else {
+                // パスワード入力モーダルを表示
+                openAdminPasswordModal();
+            }
+        }
+    });
+
+    // パスワード入力モーダルのイベント
+    closeAdminModalBtn.addEventListener('click', closeAdminPasswordModal);
+    cancelAdminBtn.addEventListener('click', closeAdminPasswordModal);
+    adminPasswordOverlay.addEventListener('click', (e) => {
+        if (e.target === adminPasswordOverlay) closeAdminPasswordModal();
+    });
+
+    confirmAdminBtn.addEventListener('click', checkAdminPassword);
+    adminPasswordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') checkAdminPassword();
+    });
+}
+
+function openAdminPasswordModal() {
+    adminPasswordInput.value = '';
+    adminPasswordError.style.display = 'none';
+    adminPasswordOverlay.classList.remove('hidden');
+    adminPasswordInput.focus();
+}
+
+function closeAdminPasswordModal() {
+    adminPasswordOverlay.classList.add('hidden');
+    adminPasswordInput.value = '';
+    adminPasswordError.style.display = 'none';
+}
+
+function checkAdminPassword() {
+    const password = adminPasswordInput.value.trim();
+    
+    if (password === ADMIN_PASSWORD) {
+        adminModeEnabled = true;
+        toggleEditModeBtn.style.display = 'inline-block';
+        closeAdminPasswordModal();
+    } else {
+        adminPasswordError.style.display = 'block';
+        adminPasswordInput.value = '';
+        adminPasswordInput.focus();
+    }
+}
+
+function disableAdminMode() {
+    adminModeEnabled = false;
+    toggleEditModeBtn.style.display = 'none';
+    
+    // 編集モードが有効な場合は終了
+    if (isEditMode) {
+        isEditMode = false;
+        document.body.classList.remove('edit-mode');
+        toggleEditModeBtn.textContent = 'レイアウト編集';
+        toggleEditModeBtn.classList.remove('active');
+        saveLayoutBtn.classList.add('hidden');
+        editControls.classList.add('hidden');
+        deselectAllSeats();
+    }
 }
 
 // ---------------------------------------------------------

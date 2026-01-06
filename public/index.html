@@ -45,7 +45,7 @@
 
         <main>
             <div class="toolbar">
-                <button id="toggle-edit-mode" class="secondary-btn">レイアウト編集</button>
+                <button id="toggle-edit-mode" class="secondary-btn" style="display: none;">レイアウト編集</button>
                 <div id="edit-controls" class="hidden"
                     style="display: inline-flex; gap: 0.5rem; margin-left: 1rem; align-items: center;">
                     <span style="font-size: 0.85rem; color: #64748b;">左クリック: 座席作成 | ドラッグ: 範囲選択 | 中クリック/ホイール: パン | Ctrl+C: コピー | Ctrl+V: ペースト</span>
@@ -107,6 +107,25 @@
                 <div class="modal-footer">
                     <button id="leave-seat-btn" class="secondary-btn hidden">離席する</button>
                     <button id="confirm-seat-btn" class="primary-btn">着席する</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Password Modal -->
+        <div id="admin-password-overlay" class="hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>管理者モード</h2>
+                    <button class="close-btn" id="close-admin-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-label">パスワードを入力してください</p>
+                    <input type="password" id="admin-password-input" placeholder="4桁のパスワード" maxlength="4" autofocus>
+                    <p id="admin-password-error" style="color: red; font-size: 0.85rem; margin-top: 0.5rem; display: none;">パスワードが正しくありません</p>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancel-admin-btn" class="secondary-btn">キャンセル</button>
+                    <button id="confirm-admin-btn" class="primary-btn">確認</button>
                 </div>
             </div>
         </div>

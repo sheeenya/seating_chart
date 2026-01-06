@@ -5,7 +5,7 @@ const fs = require('fs');
 const cron = require('node-cron');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8520;
 
 // Middleware
 app.use(cors());
