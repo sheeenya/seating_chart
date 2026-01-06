@@ -1428,6 +1428,9 @@ function panToSeat(id) {
     const seat = layoutData.seats.find(s => s.id == id);
     if (!seat) return;
 
+    // Reset view rotation when searching
+    viewRotation = 0;
+
     // Calculate seat center
     const seatCenterX = seat.x + seat.width / 2;
     const seatCenterY = seat.y + seat.height / 2;
@@ -1440,12 +1443,10 @@ function panToSeat(id) {
     // Set a fixed zoom level for search results
     const targetScale = 1.5;
     
-    // The issue: seat movements are scaled down by the zoom factor
-    // Solution: scale up the seat-based movement to compensate
+    // Use the original working approach (no rotation compensation needed)
     const scaledSeatCenterX = seatCenterX * targetScale;
     const scaledSeatCenterY = seatCenterY * targetScale;
     
-    // Use the left-bottom approach but with scaled seat positions
     const basePanX = -scaledSeatCenterX;
     const basePanY = -scaledSeatCenterY;
     
@@ -1456,14 +1457,13 @@ function panToSeat(id) {
     const targetPannedX = basePanX + adjustmentX;
     const targetPannedY = basePanY + adjustmentY;
 
-    // console.log(`=== SCALED SEAT MOVEMENT: Seat ${id} ===`);
-    // console.log(`Seat center: (${seatCenterX.toFixed(1)}, ${seatCenterY.toFixed(1)})`);
-    // console.log(`Scaled seat center: (${scaledSeatCenterX.toFixed(1)}, ${scaledSeatCenterY.toFixed(1)})`);
-    // console.log(`Container: ${containerWidth}x${containerHeight}, center: (${(containerWidth/2).toFixed(1)}, ${(containerHeight/2).toFixed(1)})`);
-    // console.log(`Target scale: ${targetScale}`);
-    // console.log(`Base pan (scaled): (${basePanX.toFixed(1)}, ${basePanY.toFixed(1)})`);
-    // console.log(`Adjustment: (${adjustmentX}, ${adjustmentY})`);
-    // console.log(`Final pan: (${targetPannedX.toFixed(1)}, ${targetPannedY.toFixed(1)})`);
+    // Debug logging (disabled for production)
+    /*
+    console.log(`=== SEARCH WITH ROTATION RESET: Seat ${id} ===`);
+    console.log(`View rotation reset to: ${viewRotation}°`);
+    console.log(`Seat center: (${seatCenterX.toFixed(1)}, ${seatCenterY.toFixed(1)})`);
+    console.log(`Final pan: (${targetPannedX.toFixed(1)}, ${targetPannedY.toFixed(1)})`);
+    */
     
     // Add debug overlay to show target center (disabled for production)
     // addDebugOverlay(seatCenterX, seatCenterY, containerWidth, containerHeight);
