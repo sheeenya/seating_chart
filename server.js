@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -110,9 +111,22 @@ app.post('/api/occupancy/clear-all', (req, res) => {
     res.json({ success: true, message: 'All occupancy data cleared' });
 });
 
+// --- Scheduled Tasks ---
+
+// 毎日朝4時に座席情報をリセット
+cron.schedule('0 4 * * *', () => {
+    console.log('Daily reset: Clearing all occupancy data at 4:00 AM');
+    occupancyData = {};
+    saveJSON(OCCUPANCY_FILE, occupancyData);
+    console.log('All occupancy data has been cleared');
+}, {
+    timezone: "Asia/Tokyo"
+});
+
 // Legacy/Compatibility endpoints (optional, but keeping for safety if frontend expects them partially)
 // NOTE: We will update frontend to use new endpoints.
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
+    console.log('Daily occupancy reset scheduled for 4:00 AM JST');
 });

@@ -275,10 +275,6 @@ main {
     white-space: nowrap;
 }
 
-.seat.occupied .seat-number-overlay {
-    /* Optional: hide number when occupied or change color */
-}
-
 /* Edit Mode Styles */
 body.edit-mode .seat {
     cursor: move;
