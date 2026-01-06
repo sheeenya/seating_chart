@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,61 +11,107 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory data store for seats
-// Initialize 200 seats
-let seats = Array.from({ length: 200 }, (_, i) => ({
-    id: i + 1,
-    name: null,
-    timestamp: null
-}));
+// Data Files
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR);
+}
+const LAYOUT_FILE = path.join(DATA_DIR, 'layout.json');
+const OCCUPANCY_FILE = path.join(DATA_DIR, 'occupancy.json');
 
-// API Routes
-app.get('/api/seats', (req, res) => {
-    res.json(seats);
+// Helper to load/save JSON
+function loadJSON(file, defaultVal) {
+    try {
+        if (fs.existsSync(file)) {
+            return JSON.parse(fs.readFileSync(file, 'utf8'));
+        }
+    } catch (e) {
+        console.error(`Error loading ${file}:`, e);
+    }
+    return defaultVal;
+}
+
+function saveJSON(file, data) {
+    try {
+        fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    } catch (e) {
+        console.error(`Error saving ${file}:`, e);
+    }
+}
+
+// --- Data Models ---
+// Layout: { seats: [ { id, x, y, width, height, label... } ] }
+let layoutData = loadJSON(LAYOUT_FILE, { seats: [] });
+
+// Occupancy: { [seatId]: { name, timestamp } }
+let occupancyData = loadJSON(OCCUPANCY_FILE, {});
+
+
+// --- API Routes ---
+
+// 1. Get Layout (Includes seat definitions)
+app.get('/api/layout', (req, res) => {
+    res.json(layoutData);
 });
 
-app.post('/api/seats/occupy', (req, res) => {
-    const { id, name } = req.body;
-
-    if (!id || !name) {
-        return res.status(400).json({ error: 'ID and Name are required' });
+// 2. Update Layout (Admin: Save seats)
+app.post('/api/layout', (req, res) => {
+    const { seats } = req.body;
+    if (!Array.isArray(seats)) {
+        return res.status(400).json({ error: 'Invalid format' });
     }
 
-    const seatIndex = seats.findIndex(s => s.id === parseInt(id));
-    if (seatIndex === -1) {
-        return res.status(404).json({ error: 'Seat not found' });
-    }
+    // Update layout data
+    layoutData.seats = seats;
+    saveJSON(LAYOUT_FILE, layoutData);
 
-    // Update seat
-    seats[seatIndex].name = name;
-    seats[seatIndex].timestamp = new Date();
-
-    // Clear previous seat if user moved? 
-    // For simplicity, we just overwrite the new seat. 
-    // In a real app we might check if user is already sitting elsewhere.
-
-    // Check if this user is already sitting somewhere else and remove them
-    // seats.forEach(s => {
-    //     if (s.id !== parseInt(id) && s.name === name) {
-    //         s.name = null;
-    //         s.timestamp = null;
-    //     }
-    // });
-
-    res.json({ success: true, seat: seats[seatIndex] });
+    res.json({ success: true, count: seats.length });
 });
 
-app.post('/api/seats/leave', (req, res) => {
-    const { id } = req.body;
-    const seatIndex = seats.findIndex(s => s.id === parseInt(id));
+// 3. Get Occupancy
+app.get('/api/occupancy', (req, res) => {
+    res.json(occupancyData);
+});
 
-    if (seatIndex !== -1) {
-        seats[seatIndex].name = null;
-        seats[seatIndex].timestamp = null;
+// 4. Update Occupancy (Sit down)
+app.post('/api/occupancy', (req, res) => {
+    const { seatId, name } = req.body;
+
+    if (!seatId || !name) {
+        return res.status(400).json({ error: 'seatId and name required' });
+    }
+
+    occupancyData[seatId] = {
+        name: name,
+        timestamp: new Date().toISOString()
+    };
+    saveJSON(OCCUPANCY_FILE, occupancyData);
+
+    res.json({ success: true });
+});
+
+// 5. Clear Occupancy (Leave)
+app.post('/api/occupancy/leave', (req, res) => {
+    const { seatId } = req.body;
+
+    if (occupancyData[seatId]) {
+        delete occupancyData[seatId];
+        saveJSON(OCCUPANCY_FILE, occupancyData);
     }
 
     res.json({ success: true });
 });
+
+// 6. Clear All Occupancy (Reset all)
+app.post('/api/occupancy/clear-all', (req, res) => {
+    occupancyData = {};
+    saveJSON(OCCUPANCY_FILE, occupancyData);
+    
+    res.json({ success: true, message: 'All occupancy data cleared' });
+});
+
+// Legacy/Compatibility endpoints (optional, but keeping for safety if frontend expects them partially)
+// NOTE: We will update frontend to use new endpoints.
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

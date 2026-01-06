@@ -44,16 +44,51 @@
         </header>
 
         <main>
-            <div class="map-wrapper" id="map-wrapper">
-                <div class="room-layout" id="seat-grid">
-                    <!-- Seats will be injected here via JS -->
+            <div class="toolbar">
+                <button id="toggle-edit-mode" class="secondary-btn">レイアウト編集</button>
+                <div id="edit-controls" class="hidden"
+                    style="display: inline-flex; gap: 0.5rem; margin-left: 1rem; align-items: center;">
+                    <span style="font-size: 0.85rem; color: #64748b;">左クリック: 座席作成 | ドラッグ: 範囲選択 | 中クリック/ホイール: パン | Ctrl+C: コピー | Ctrl+V: ペースト</span>
+                    <div style="width: 1px; height: 20px; background: #cbd5e1; margin: 0 8px;"></div>
+                    <div
+                        style="display: flex; align-items: center; gap: 2px; background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">
+                        <input type="text" id="seat-prefix-input" value="A" placeholder="A"
+                            style="width: 30px; text-align: center; border: 1px solid #cbd5e1; border-radius: 3px;">
+                        <span>-</span>
+                        <input type="number" id="seat-number-input" value="1" min="1"
+                            style="width: 50px; border: 1px solid #cbd5e1; border-radius: 3px;">
+                    </div>
+                    <button id="rotate-seat-btn" class="secondary-btn" disabled title="回転 (R)">↻</button>
+                    <button id="delete-seat-btn" class="secondary-btn" style="color:red;" disabled
+                        title="削除 (Del)">🗑️</button>
+                    <div style="width: 1px; height: 20px; background: #cbd5e1; margin: 0 4px;"></div>
+                    <button id="reset-seats-btn" class="secondary-btn"
+                        style="color: #64748b; font-size: 0.8rem;">全削除</button>
+                </div>
+                <button id="save-layout-btn" class="primary-btn hidden" style="margin-left: auto;">保存する</button>
+            </div>
+
+            <div class="map-container-outer">
+                <div class="map-wrapper" id="map-wrapper">
+                    <!-- Image and seats container -->
+                    <div class="layout-container" id="layout-container">
+                        <!-- Use object or img for SVG. Img is easier for scaling/panning as image.
+                             If interaction with SVG elements is needed later, object/embed is better.
+                             For now, just background image functionality. -->
+                        <img src="layout.svg" alt="Office Layout" id="layout-image"
+                            onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
+                        <div class="room-layout" id="seat-grid">
+                            <!-- Seats will be injected here via JS -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="zoom-controls">
                 <button id="zoom-in" title="Zoom In">+</button>
-                <button id="reset-zoom" title="Reset View">⟲</button>
+                <button id="reset-zoom" title="Fit to View">⟲</button>
                 <button id="zoom-out" title="Zoom Out">-</button>
+                <button id="rotate-view" title="Rotate View 90°">↻</button>
             </div>
         </main>
 
