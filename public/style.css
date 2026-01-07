@@ -397,7 +397,7 @@ body.dark-theme .seat:not(.occupied) {
 
 /* Light theme specific seat styling */
 body.light-theme .seat:not(.occupied) {
-    background: #ffffff;
+    background: linear-gradient(135deg, #ffffff 0%, #fef9f3 100%);
 }
 
 .seat:hover {
