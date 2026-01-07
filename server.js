@@ -13,7 +13,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Data Files
-const DATA_DIR = path.join(__dirname, 'data');
+// Use process.cwd() instead of __dirname to work with packaged exe
+const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR);
 }
@@ -107,7 +108,7 @@ app.post('/api/occupancy/leave', (req, res) => {
 app.post('/api/occupancy/clear-all', (req, res) => {
     occupancyData = {};
     saveJSON(OCCUPANCY_FILE, occupancyData);
-    
+
     res.json({ success: true, message: 'All occupancy data cleared' });
 });
 
