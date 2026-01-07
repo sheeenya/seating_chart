@@ -93,6 +93,7 @@ let dragStartSeatId = null;
 
 // Initialize
 function init() {
+    initTheme();
     loadAllData();
     setInterval(() => {
         if (!isEditMode) fetchOccupancy();
@@ -101,6 +102,7 @@ function init() {
     setupZoomPan();
     setupEditMode();
     setupAdminMode();
+    setupThemeToggle();
     // setupDebugControls(); // Disabled for production
 
     closeModalBtn.addEventListener('click', closeModal);
@@ -276,6 +278,7 @@ function checkAdminPassword() {
     if (password === ADMIN_PASSWORD) {
         adminModeEnabled = true;
         toggleEditModeBtn.style.display = 'inline-block';
+        updateToolbarVisibility();
         closeAdminPasswordModal();
     } else {
         adminPasswordError.style.display = 'block';
@@ -284,9 +287,23 @@ function checkAdminPassword() {
     }
 }
 
+function updateToolbarVisibility() {
+    const toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+        // 編集ボタンが表示されている時（管理者モード）または編集モードの時だけツールバーを表示
+        const editBtnVisible = toggleEditModeBtn.style.display !== 'none';
+        if (isEditMode || editBtnVisible) {
+            toolbar.style.display = 'flex';
+        } else {
+            toolbar.style.display = 'none';
+        }
+    }
+}
+
 function disableAdminMode() {
     adminModeEnabled = false;
     toggleEditModeBtn.style.display = 'none';
+    updateToolbarVisibility();
     
     // 編集モードが有効な場合は終了
     if (isEditMode) {
@@ -1120,6 +1137,11 @@ function renderSeats() {
                 <div class="seat-occupant"></div>
                 <div class="seat-number-overlay">${getSeatDisplayLabel(seat.id)}</div>
             `;
+            // 外出・在宅の場合はラベルを非表示
+            if (seat.id.includes('外出-') || seat.id.includes('在宅-')) {
+                const numberEl = seatEl.querySelector('.seat-number-overlay');
+                if (numberEl) numberEl.style.display = 'none';
+            }
             setupSeatEvents(seatEl);
             seatGrid.appendChild(seatEl);
         }
@@ -1176,9 +1198,16 @@ function renderSeats() {
         
         // Apply the calculated text rotation (independent of seat rotation)
         occupantEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
-        numberEl.style.transform = `translateX(-50%) rotate(${-seatRotation + textRotation}deg)`;
+        // ラベルは右下に固定（回転なし）
+        numberEl.style.transform = 'none';
         
-        numberEl.textContent = seat.label || seat.id;
+        // 外出・在宅の場合はラベルを非表示
+        if (seat.id.includes('外出-') || seat.id.includes('在宅-')) {
+            numberEl.style.display = 'none';
+        } else {
+            numberEl.style.display = 'block';
+            numberEl.textContent = getSeatDisplayLabel(seat.id);
+        }
     });
 }
 
@@ -1192,7 +1221,7 @@ function setupZoomPan() {
         
         // If holding Ctrl key, zoom instead of pan
         if (e.ctrlKey) {
-            const zoomStep = 0.1;
+            const zoomStep = 0.15;
             const rect = container.getBoundingClientRect();
             const mouseX = e.clientX - rect.left - rect.width / 2;
             const mouseY = e.clientY - rect.top - rect.height / 2;
@@ -1220,7 +1249,7 @@ function setupZoomPan() {
         }
 
         // Default: zoom
-        const zoomStep = 0.1;
+        const zoomStep = 0.15;
         const rect = container.getBoundingClientRect();
         const mouseX = e.clientX - rect.left - rect.width / 2;
         const mouseY = e.clientY - rect.top - rect.height / 2;
@@ -1292,11 +1321,11 @@ function setupZoomPan() {
 
     // Zoom controls
     zoomInBtn.addEventListener('click', () => { 
-        const newScale = Math.min(scale * 1.2, 5);
+        const newScale = Math.min(scale * 1.3, 5);
         animateToTransform(newScale, pannedX, pannedY);
     });
     zoomOutBtn.addEventListener('click', () => { 
-        const newScale = Math.max(scale / 1.2, 0.2);
+        const newScale = Math.max(scale / 1.3, 0.2);
         animateToTransform(newScale, pannedX, pannedY);
     });
     resetZoomBtn.addEventListener('click', () => {
@@ -1514,8 +1543,8 @@ function panToSeat(id) {
     const seat = layoutData.seats.find(s => s.id == id);
     if (!seat) return;
 
-    // Reset view rotation when searching
-    viewRotation = 0;
+    // Don't reset view rotation - keep the current rotation
+    // viewRotation = 0; // Removed to prevent flicker
 
     // Calculate seat center
     const seatCenterX = seat.x + seat.width / 2;
@@ -1775,6 +1804,42 @@ function openModal(seat) {
 function closeModal() {
     modalOverlay.classList.add('hidden');
     userNameInput.value = '';
+}
+
+// Theme Management
+let currentTheme = localStorage.getItem('theme') || 'dark';
+
+function initTheme() {
+    document.body.className = currentTheme + '-theme';
+    updateThemeIcon();
+}
+
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.body.className = currentTheme + '-theme';
+    localStorage.setItem('theme', currentTheme);
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const sunIcon = document.getElementById('theme-icon-sun');
+    const moonIcon = document.getElementById('theme-icon-moon');
+    if (sunIcon && moonIcon) {
+        if (currentTheme === 'dark') {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+        } else {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+        }
+    }
+}
+
+function setupThemeToggle() {
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', toggleTheme);
+    }
 }
 
 
