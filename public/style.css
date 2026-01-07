@@ -9,9 +9,9 @@
 /* ダークテーマ（デフォルト） */
 :root,
 body.dark-theme {
-    --bg-color: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-tertiary: #334155;
+    --bg-color: #1e293b;
+    --bg-secondary: #334155;
+    --bg-tertiary: #475569;
     --bg-map: #f8fafc;
     --text-color: #f1f5f9;
     --text-secondary: #cbd5e1;
@@ -38,17 +38,17 @@ body.dark-theme {
 
 /* ライトテーマ */
 body.light-theme {
-    --bg-color: #f8fafc;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f1f5f9;
+    --bg-color: #fef3e2;
+    --bg-secondary: #fef9f3;
+    --bg-tertiary: #fef5e7;
     --bg-map: #ffffff;
     --text-color: #1e293b;
-    --text-secondary: #64748b;
+    --text-secondary: #78716c;
     --seat-bg: #ffffff;
-    --seat-border: #cbd5e1;
+    --seat-border: #f3e8d2;
     --seat-occupied: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
     --seat-occupied-border: #fb923c;
-    --seat-text: #64748b;
+    --seat-text: #a8a29e;
     --seat-occupied-text: #ffffff;
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -374,7 +374,7 @@ main {
 /* Seat Styles */
 .seat {
     position: absolute;
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(51, 65, 85, 0.95) 100%);
+    background: var(--seat-bg);
     border: 2px solid var(--seat-border);
     border-radius: 8px;
     display: flex;
@@ -387,6 +387,16 @@ main {
     font-size: 15px;
     box-shadow: var(--shadow-md);
     backdrop-filter: blur(10px);
+}
+
+/* Dark theme specific seat styling */
+body.dark-theme .seat:not(.occupied) {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(51, 65, 85, 0.95) 100%);
+}
+
+/* Light theme specific seat styling */
+body.light-theme .seat:not(.occupied) {
+    background: #ffffff;
 }
 
 .seat:hover {
@@ -472,17 +482,16 @@ body.edit-mode .map-container-outer {
     box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.4), 0 0 30px rgba(245, 158, 11, 0.6);
     z-index: 20;
     animation: highlight-bounce 0.6s ease-out;
-    transform: scale(1.1);
 }
 
 @keyframes highlight-bounce {
     0%, 100% {
         box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.4), 0 0 30px rgba(245, 158, 11, 0.6);
-        transform: scale(1.1);
+        filter: brightness(1.1);
     }
     50% {
         box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.6), 0 0 40px rgba(245, 158, 11, 0.8);
-        transform: scale(1.15);
+        filter: brightness(1.2);
     }
 }
 

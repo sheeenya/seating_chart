@@ -39,7 +39,8 @@
 
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <button id="theme-toggle" class="theme-toggle-btn" title="テーマを切り替え">
-                    <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="5"></circle>
                         <line x1="12" y1="1" x2="12" y2="3"></line>
                         <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -50,7 +51,8 @@
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                     </svg>
-                    <svg id="theme-icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <svg id="theme-icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" style="display: none;">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                     </svg>
                 </button>
@@ -66,7 +68,8 @@
                 <button id="toggle-edit-mode" class="secondary-btn" style="display: none;">レイアウト編集</button>
                 <div id="edit-controls" class="hidden"
                     style="display: inline-flex; gap: 0.5rem; margin-left: 1rem; align-items: center;">
-                    <span style="font-size: 0.85rem; color: #64748b;">左クリック: 座席作成 | ドラッグ: 範囲選択 | 中クリック/ホイール: パン | Ctrl+C: コピー | Ctrl+V: ペースト</span>
+                    <span style="font-size: 0.85rem; color: #64748b;">左クリック: 座席作成 | ドラッグ: 範囲選択 | 中クリック/ホイール: パン |
+                        Ctrl+C: コピー | Ctrl+V: ペースト</span>
                     <div style="width: 1px; height: 20px; background: #cbd5e1; margin: 0 8px;"></div>
                     <div
                         style="display: flex; align-items: center; gap: 2px; background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">
@@ -119,7 +122,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="modal-label">着席する方のお名前を入力してください</p>
-                    <input type="text" id="user-name-input" placeholder="例: 山田 太郎" autofocus>
+                    <input type="text" id="user-name-input" autofocus>
                     <input type="hidden" id="selected-seat-id">
                 </div>
                 <div class="modal-footer">
@@ -139,7 +142,8 @@
                 <div class="modal-body">
                     <p class="modal-label">パスワードを入力してください</p>
                     <input type="password" id="admin-password-input" placeholder="4桁のパスワード" maxlength="4" autofocus>
-                    <p id="admin-password-error" style="color: red; font-size: 0.85rem; margin-top: 0.5rem; display: none;">パスワードが正しくありません</p>
+                    <p id="admin-password-error"
+                        style="color: red; font-size: 0.85rem; margin-top: 0.5rem; display: none;">パスワードが正しくありません</p>
                 </div>
                 <div class="modal-footer">
                     <button id="cancel-admin-btn" class="secondary-btn">キャンセル</button>
