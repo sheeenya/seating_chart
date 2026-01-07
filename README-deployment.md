@@ -71,60 +71,45 @@ PCの起動時に自動でサーバーを開始したい場合：
 
 ---
 
-## 5. データ保護とバックアップ
+## 5. データ保護の仕組み
 
 ### 🛡️ 運用データの自動保護
 
-デプロイ時に**運用中のレイアウトデータが上書きされることはありません**。
+**deployフォルダには運用データ（`data`フォルダ）が含まれません。**
 
-- **初回デプロイ時**: 開発環境の `data/layout.json` と `data/occupancy.json` がコピーされます
-- **2回目以降**: 既存のデータファイルは保護され、上書きされません
-- **テンプレート保存**: 新バージョンのレイアウトは `data/layout.template.json` として保存されます
+これにより、サーバーPCに`deploy`フォルダを上書きコピーしても、運用中のレイアウトや着席データが失われることはありません。
 
-### 📦 自動バックアップ
-
-デプロイを実行すると、既存の運用データが自動的にバックアップされます：
+### 📁 デプロイパッケージの内容
 
 ```
 deploy/
-└── data/
-    └── backup/
-        └── 20260107_112030/    # 日時付きフォルダ
-            ├── layout.json
-            └── occupancy.json
+├── seating-chart-app.exe    # 実行ファイル
+├── start-server.bat         # 起動スクリプト
+└── public/                  # Webページファイル
+    ├── index.html
+    ├── script.js
+    ├── style.css
+    ├── layout.png
+    └── layout.svg
 ```
 
-バックアップは `deploy\data\backup\` フォルダに日時付きで保存されます。
+**含まれないもの:**
+- `data/` フォルダ（運用データ）
+  - `layout.json` - 座席レイアウト
+  - `occupancy.json` - 着席状況
 
-### 🔄 データの復元方法
+### 🚀 初回デプロイ時の動作
 
-万が一、データを復元したい場合：
+サーバーPCで初めてアプリケーションを起動すると、`data`フォルダが自動的に作成され、空のデータファイルが生成されます。
 
-1. サーバーを停止する
-2. `deploy\data\backup\` から該当する日時のフォルダを開く
-3. バックアップファイルを `deploy\data\` にコピーして上書き
-4. サーバーを再起動する
+その後、管理者モードでレイアウトを作成してください。
 
-**例:**
-```bash
-# バックアップから復元
-copy /Y deploy\data\backup\20260107_112030\layout.json deploy\data\layout.json
-```
+### 🔄 バージョンアップ時の動作
 
-### 🔧 新バージョンのレイアウトを適用したい場合
-
-開発環境で作成した新しいレイアウトを運用環境に適用したい場合：
-
-1. デプロイ実行後、`deploy\data\layout.template.json` を確認
-2. 必要に応じて手動で `layout.json` にリネーム（元のファイルは事前にバックアップ）
-
-```bash
-# 現在のレイアウトをバックアップ
-copy deploy\data\layout.json deploy\data\layout.backup.json
-
-# 新バージョンを適用
-copy /Y deploy\data\layout.template.json deploy\data\layout.json
-```
+1. 開発PCで`deploy.bat`を実行
+2. `deploy`フォルダをサーバーPCにコピー（上書き可）
+3. **運用データは保護される**（`data`フォルダは含まれていないため）
+4. アプリケーションとWebページのみが更新される
 
 ---
 

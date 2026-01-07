@@ -34,7 +34,6 @@ echo [3/4] デプロイフォルダにファイルをコピーしています...
 REM deployフォルダが存在しない場合は作成
 if not exist "deploy\" mkdir deploy
 if not exist "deploy\public\" mkdir deploy\public
-if not exist "deploy\data\" mkdir deploy\data
 
 REM exeファイルをコピー
 if exist "dist\seating-chart-app.exe" (
@@ -66,64 +65,6 @@ if exist "deploy\使用方法.md" (
     )
 )
 
-REM ========================================
-REM 運用データのバックアップを作成
-REM ========================================
-if exist "deploy\data\" (
-    echo.
-    echo 運用データをバックアップしています...
-    
-    REM バックアップフォルダを作成（日時付き）
-    set BACKUP_TIMESTAMP=%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%
-    set BACKUP_TIMESTAMP=%BACKUP_TIMESTAMP: =0%
-    set BACKUP_DIR=deploy\data\backup\%BACKUP_TIMESTAMP%
-    
-    if not exist "deploy\data\backup\" mkdir "deploy\data\backup"
-    mkdir "%BACKUP_DIR%" >nul 2>&1
-    
-    REM 既存のデータファイルをバックアップ
-    if exist "deploy\data\layout.json" (
-        copy /Y "deploy\data\layout.json" "%BACKUP_DIR%\layout.json" >nul
-        echo   - layout.json をバックアップしました
-    )
-    if exist "deploy\data\occupancy.json" (
-        copy /Y "deploy\data\occupancy.json" "%BACKUP_DIR%\occupancy.json" >nul
-        echo   - occupancy.json をバックアップしました
-    )
-    echo   バックアップ先: %BACKUP_DIR%
-    echo.
-)
-
-REM ========================================
-REM データファイルの保護（既存ファイルは絶対に上書きしない）
-REM ========================================
-if exist "data\" (
-    REM 運用データが存在する場合は保護
-    if not exist "deploy\data\layout.json" (
-        if exist "data\layout.json" (
-            copy /Y "data\layout.json" "deploy\data\layout.json" >nul
-            echo   - data\layout.json をコピーしました（初回デプロイ）
-        )
-    ) else (
-        echo   - data\layout.json は既に存在します（運用データ保護のためスキップ）
-    )
-    
-    if not exist "deploy\data\occupancy.json" (
-        if exist "data\occupancy.json" (
-            copy /Y "data\occupancy.json" "deploy\data\occupancy.json" >nul
-            echo   - data\occupancy.json をコピーしました（初回デプロイ）
-        )
-    ) else (
-        echo   - data\occupancy.json は既に存在します（運用データ保護のためスキップ）
-    )
-    
-    REM 新バージョンのレイアウトをテンプレートとして保存
-    if exist "data\layout.json" (
-        copy /Y "data\layout.json" "deploy\data\layout.template.json" >nul
-        echo   - 新バージョンのレイアウトテンプレートを保存しました
-        echo     （必要に応じて layout.template.json を参照してください）
-    )
-)
 
 echo.
 
@@ -133,10 +74,14 @@ echo ========================================
 echo デプロイ先: deploy\ フォルダ
 echo ========================================
 echo.
+echo 重要: dataフォルダは含まれていません
+echo サーバー側の運用データは保護されます
+echo.
 echo 次のステップ:
-echo 1. deploy\ フォルダを専用PCにコピー
+echo 1. deploy\ フォルダを専用PCにコピー（上書き可）
 echo 2. deploy\start-server.bat をダブルクリックして起動
-echo 3. ブラウザで http://localhost:8520 にアクセス
+echo 3. 初回起動時に data フォルダが自動作成されます
+echo 4. ブラウザで http://localhost:8520 にアクセス
 echo.
 pause
 
