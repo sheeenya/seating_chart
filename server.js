@@ -41,19 +41,19 @@ function saveJSON(file, data) {
     }
 }
 
-// --- Data Models ---
-// Layout: { seats: [ { id, x, y, width, height, label... } ] }
+// Data Models
 let layoutData = loadJSON(LAYOUT_FILE, { seats: [] });
+let layoutVersion = fs.existsSync(LAYOUT_FILE) ? fs.statSync(LAYOUT_FILE).mtimeMs : Date.now();
 
-// Occupancy: { [seatId]: { name, timestamp } }
 let occupancyData = loadJSON(OCCUPANCY_FILE, {});
+let occupancyVersion = fs.existsSync(OCCUPANCY_FILE) ? fs.statSync(OCCUPANCY_FILE).mtimeMs : Date.now();
 
 
 // --- API Routes ---
 
 // 1. Get Layout (Includes seat definitions)
 app.get('/api/layout', (req, res) => {
-    res.json(layoutData);
+    res.json({ data: layoutData, version: layoutVersion });
 });
 
 // 2. Update Layout (Admin: Save seats)
@@ -65,14 +65,15 @@ app.post('/api/layout', (req, res) => {
 
     // Update layout data
     layoutData.seats = seats;
+    layoutVersion = Date.now();
     saveJSON(LAYOUT_FILE, layoutData);
 
-    res.json({ success: true, count: seats.length });
+    res.json({ success: true, count: seats.length, version: layoutVersion });
 });
 
 // 3. Get Occupancy
 app.get('/api/occupancy', (req, res) => {
-    res.json(occupancyData);
+    res.json({ data: occupancyData, version: occupancyVersion });
 });
 
 // 4. Update Occupancy (Sit down)
@@ -88,9 +89,10 @@ app.post('/api/occupancy', (req, res) => {
         colorIndex: colorIndex !== undefined ? colorIndex : 0,
         timestamp: new Date().toISOString()
     };
+    occupancyVersion = Date.now();
     saveJSON(OCCUPANCY_FILE, occupancyData);
 
-    res.json({ success: true });
+    res.json({ success: true, version: occupancyVersion });
 });
 
 // 5. Clear Occupancy (Leave)
@@ -99,18 +101,20 @@ app.post('/api/occupancy/leave', (req, res) => {
 
     if (occupancyData[seatId]) {
         delete occupancyData[seatId];
+        occupancyVersion = Date.now();
         saveJSON(OCCUPANCY_FILE, occupancyData);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, version: occupancyVersion });
 });
 
 // 6. Clear All Occupancy (Reset all)
 app.post('/api/occupancy/clear-all', (req, res) => {
     occupancyData = {};
+    occupancyVersion = Date.now();
     saveJSON(OCCUPANCY_FILE, occupancyData);
 
-    res.json({ success: true, message: 'All occupancy data cleared' });
+    res.json({ success: true, message: 'All occupancy data cleared', version: occupancyVersion });
 });
 
 // --- Scheduled Tasks ---
@@ -119,6 +123,7 @@ app.post('/api/occupancy/clear-all', (req, res) => {
 cron.schedule('0 4 * * *', () => {
     console.log('Daily reset: Clearing all occupancy data at 4:00 AM');
     occupancyData = {};
+    occupancyVersion = Date.now();
     saveJSON(OCCUPANCY_FILE, occupancyData);
     console.log('All occupancy data has been cleared');
 }, {

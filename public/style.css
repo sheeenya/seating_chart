@@ -331,6 +331,11 @@ main {
     transform-origin: center center;
 }
 
+/* 拡大時のボケ防止：操作中のみGPU加速を有効にする */
+.map-container-outer.is-interacting .map-wrapper {
+    will-change: transform;
+}
+
 .layout-container {
     position: relative;
     min-width: 800px;

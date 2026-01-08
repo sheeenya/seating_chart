@@ -104,6 +104,12 @@ let seatElementCache = new Map();
 let lastOccupancyJson = '';
 let lastLayoutJson = '';
 let lastTheme = '';
+let lastLayoutVersion = 0;
+let lastOccupancyVersion = 0;
+
+// Interaction state for throttling
+let isTransformPending = false;
+let containerRectCache = null;
 
 // Copy/Paste State
 let copiedSeats = [];
@@ -1146,21 +1152,24 @@ function updateSelectedSeatId(id) {
 // Render & Zoom (Basic)
 // ---------------------------------------------------------
 
-function renderSeats() {
-    // Dirty check for layout data
-    const currentLayoutJson = JSON.stringify(layoutData.seats);
-    const layoutChanged = currentLayoutJson !== lastLayoutJson;
-
-    // Dirty check for occupancy data
-    const currentOccupancyJson = JSON.stringify(occupancyData);
-    const occupancyChanged = currentOccupancyJson !== lastOccupancyJson;
-
+function renderSeats(force = false) {
     // Theme check
     const themeChanged = currentTheme !== lastTheme;
 
-    if (!layoutChanged && !occupancyChanged && !themeChanged && !isEditMode) {
-        return; // No changes, skip re-render
+    // Use versions for initial skip check if not in edit mode
+    if (!force && !themeChanged && !isEditMode &&
+        lastLayoutJson !== '' &&
+        layoutVersionCheck === lastLayoutVersionRendered &&
+        occupancyVersionCheck === lastOccupancyVersionRendered) {
+        return;
     }
+
+    // For specific dirty-checking of layout vs occupancy inside the function, 
+    // we still use the string check for now.
+    const currentLayoutJson = JSON.stringify(layoutData.seats);
+    const layoutChanged = currentLayoutJson !== lastLayoutJson;
+    const currentOccupancyJson = JSON.stringify(occupancyData);
+    const occupancyChanged = currentOccupancyJson !== lastOccupancyJson;
 
     const lastOccupancy = lastOccupancyJson ? JSON.parse(lastOccupancyJson) : {};
 
@@ -1270,17 +1279,48 @@ function renderSeats() {
 }
 
 function setupZoomPan() {
-    updateTransform();
     const container = document.querySelector('.map-container-outer');
+
+    function getContainerRect() {
+        if (!containerRectCache) {
+            containerRectCache = container.getBoundingClientRect();
+        }
+        return containerRectCache;
+    }
+
+    window.addEventListener('resize', () => {
+        containerRectCache = null;
+    });
+
+    let interactionTimeout = null;
+
+    function scheduleUpdate() {
+        // 表示のぼやけ防止：操作開始時にクラスを付与
+        container.classList.add('is-interacting');
+
+        // デバウンス処理：操作停止から250ms後にクラスを除去（再ラスタライズを促す）
+        if (interactionTimeout) clearTimeout(interactionTimeout);
+        interactionTimeout = setTimeout(() => {
+            container.classList.remove('is-interacting');
+        }, 250);
+
+        if (!isTransformPending) {
+            isTransformPending = true;
+            requestAnimationFrame(() => {
+                updateTransform();
+                isTransformPending = false;
+            });
+        }
+    }
 
     // Wheel zoom and pan
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
+        const rect = getContainerRect();
 
         // If holding Ctrl key, zoom instead of pan
         if (e.ctrlKey) {
             const zoomStep = 0.15;
-            const rect = container.getBoundingClientRect();
             const mouseX = e.clientX - rect.left - rect.width / 2;
             const mouseY = e.clientY - rect.top - rect.height / 2;
 
@@ -1294,7 +1334,7 @@ function setupZoomPan() {
             pannedY = mouseY - (localY * newScale);
 
             scale = newScale;
-            updateTransform();
+            scheduleUpdate();
             return;
         }
 
@@ -1302,13 +1342,12 @@ function setupZoomPan() {
         if (e.buttons === 4) {
             pannedX -= e.deltaX;
             pannedY -= e.deltaY;
-            updateTransform();
+            scheduleUpdate();
             return;
         }
 
         // Default: zoom
-        const zoomStep = 0.15;
-        const rect = container.getBoundingClientRect();
+        const zoomStep = 0.1;
         const mouseX = e.clientX - rect.left - rect.width / 2;
         const mouseY = e.clientY - rect.top - rect.height / 2;
 
@@ -1322,12 +1361,11 @@ function setupZoomPan() {
         pannedY = mouseY - (localY * newScale);
 
         scale = newScale;
-        updateTransform();
+        scheduleUpdate();
     }, { passive: false });
 
     // Middle mouse button pan
     container.addEventListener('mousedown', (e) => {
-        // Middle mouse button or wheel click for panning
         if (e.button === 1) {
             e.preventDefault();
             isPanningWithWheel = true;
@@ -1337,7 +1375,6 @@ function setupZoomPan() {
             return;
         }
 
-        // Regular pan only in non-edit mode
         if (!isEditMode && e.button === 0) {
             if (e.target.closest('.seat') || e.target.closest('.toolbar')) return;
 
@@ -1353,7 +1390,7 @@ function setupZoomPan() {
             e.preventDefault();
             pannedX = e.clientX - panStartX;
             pannedY = e.clientY - panStartY;
-            updateTransform();
+            scheduleUpdate();
             return;
         }
 
@@ -1361,7 +1398,7 @@ function setupZoomPan() {
             e.preventDefault();
             pannedX = e.clientX - mapStartX;
             pannedY = e.clientY - mapStartY;
-            updateTransform();
+            scheduleUpdate();
         }
     });
 
@@ -1788,15 +1825,26 @@ async function saveLayout() {
     } catch (e) { console.error(e); alert('Error'); }
 }
 
+let lastLayoutVersionRendered = 0;
+let lastOccupancyVersionRendered = 0;
+let layoutVersionCheck = 0;
+let occupancyVersionCheck = 0;
+
 async function fetchLayout() {
     try {
         const response = await fetch(API_LAYOUT_URL);
-        const data = await response.json();
-        layoutData = data;
-        renderSeats();
+        const result = await response.json();
+        const newData = result.data || result;
+        const newVersion = result.version || Date.now();
 
-        // Auto-fit view to show all seats
-        fitToView();
+        if (newVersion !== lastLayoutVersion) {
+            layoutData = newData;
+            layoutVersionCheck = newVersion;
+            renderSeats();
+            lastLayoutVersion = newVersion;
+            lastLayoutVersionRendered = newVersion; // Mark as processed
+            fitToView();
+        }
     } catch (error) {
         console.error('Error fetching layout:', error);
     }
@@ -1805,11 +1853,29 @@ async function fetchLayout() {
 async function fetchOccupancy() {
     try {
         const response = await fetch(API_OCCUPANCY_URL);
-        occupancyData = await response.json();
-        renderSeats();
+        const result = await response.json();
+        const newData = result.data || result;
+        const newVersion = result.version || Date.now();
+
+        if (newVersion !== lastOccupancyVersion) {
+            occupancyData = newData;
+            occupancyVersionCheck = newVersion;
+            renderSeats();
+            lastOccupancyVersion = newVersion;
+            lastOccupancyVersionRendered = newVersion; // Mark as processed
+        }
+        updateStatus(true);
     } catch (error) {
         console.error('Error fetching occupancy:', error);
+        updateStatus(false);
     }
+}
+
+function updateStatus(isLive) {
+    const statusText = document.getElementById('connection-status');
+    const dot = document.querySelector('.status-indicator .dot');
+    if (statusText) statusText.textContent = isLive ? 'Live' : 'Disconnected';
+    if (dot) dot.style.backgroundColor = isLive ? 'var(--success-color)' : '#ef4444';
 }
 
 async function handleSeatSubmit() {
