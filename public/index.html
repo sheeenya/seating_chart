@@ -123,9 +123,24 @@
                 <div class="modal-body">
                     <p class="modal-label">着席する方のお名前を入力してください</p>
                     <input type="text" id="user-name-input" autofocus>
+
+                    <p class="modal-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span>ラベルカラー</span>
+                        <span id="current-color-preview"
+                            style="width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);"></span>
+                    </p>
+                    <div id="color-picker-container" class="color-picker-container">
+                        <div id="color-picker-grid" class="color-picker-grid">
+                            <!-- Colors injected via JS -->
+                        </div>
+                    </div>
+
                     <input type="hidden" id="selected-seat-id">
                 </div>
                 <div class="modal-footer">
+                    <button id="toggle-color-btn" class="secondary-btn">
+                        <i class="fas fa-palette"></i> カラー変更
+                    </button>
                     <button id="leave-seat-btn" class="secondary-btn hidden">離席する</button>
                     <button id="confirm-seat-btn" class="primary-btn">着席する</button>
                 </div>

@@ -77,7 +77,7 @@ app.get('/api/occupancy', (req, res) => {
 
 // 4. Update Occupancy (Sit down)
 app.post('/api/occupancy', (req, res) => {
-    const { seatId, name } = req.body;
+    const { seatId, name, colorIndex } = req.body;
 
     if (!seatId || !name) {
         return res.status(400).json({ error: 'seatId and name required' });
@@ -85,6 +85,7 @@ app.post('/api/occupancy', (req, res) => {
 
     occupancyData[seatId] = {
         name: name,
+        colorIndex: colorIndex !== undefined ? colorIndex : 0,
         timestamp: new Date().toISOString()
     };
     saveJSON(OCCUPANCY_FILE, occupancyData);

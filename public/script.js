@@ -60,6 +60,23 @@ let draggedSeatIds = [];
 let selectedSeatIds = new Set(); // Multi-select support
 let dragOffset = { x: 0, y: 0, initialPositions: {} };
 
+// Color Picker State
+let selectedColorIndex = 0;
+const COLOR_PALETTES = {
+    dark: [
+        "#8C355F", "#994052", "#A6424C", "#B24443", "#B34D3E", "#B25939",
+        "#A66E3D", "#997F42", "#8C8946", "#757E47", "#678049", "#5A814C",
+        "#39764D", "#2A6A69", "#256B75", "#1D6283", "#204F79", "#214275",
+        "#2E3A76", "#39367B", "#493278", "#5F3179", "#772D7A", "#802A69"
+    ],
+    light: [
+        "#EEAFCE", "#FBB4C4", "#FAB6B5", "#FDCDB7", "#FBD8B0", "#FEE6AA",
+        "#FCF1AF", "#FEFFB3", "#EEFAB2", "#E6F5B0", "#D9F6C0", "#CCEAC4",
+        "#C0EBCD", "#B3E2D8", "#B4DDDF", "#B4D7DD", "#B5D2E0", "#B3CEE3",
+        "#B4C2DD", "#B2B6D9", "#BCB2D5", "#CAB2D6", "#DAAFDC", "#E4ADD5"
+    ]
+};
+
 // Selection Box State
 let isSelecting = false;
 let selectionStart = { x: 0, y: 0 };
@@ -113,10 +130,12 @@ function init() {
     confirmSeatBtn.addEventListener('click', handleSeatSubmit);
     leaveSeatBtn.addEventListener('click', handleLeaveSeat);
 
+    document.getElementById('toggle-color-btn').addEventListener('click', toggleColorPicker);
+
     userNameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSeatSubmit();
     });
-    
+
     // Wait for background image to load, then fit to view
     const layoutImage = document.getElementById('layout-image');
     if (layoutImage) {
@@ -142,7 +161,7 @@ function init() {
 function setupDebugControls() {
     // Debug controls disabled for production
     return;
-    
+
     // Add debug panel
     const debugPanel = document.createElement('div');
     debugPanel.id = 'debug-panel';
@@ -159,7 +178,7 @@ function setupDebugControls() {
         z-index: 9999;
         display: none;
     `;
-    
+
     debugPanel.innerHTML = `
         <div>Debug Controls</div>
         <div>Scale: <span id="debug-scale">${scale.toFixed(2)}</span></div>
@@ -179,9 +198,9 @@ function setupDebugControls() {
             <button onclick="logCurrentTransform()">Log Transform</button>
         </div>
     `;
-    
+
     document.body.appendChild(debugPanel);
-    
+
     // Toggle debug panel with 'D' key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'd' || e.key === 'D') {
@@ -193,20 +212,20 @@ function setupDebugControls() {
 }
 
 // Global functions for debug controls
-window.adjustPan = function(deltaX, deltaY) {
+window.adjustPan = function (deltaX, deltaY) {
     pannedX += deltaX;
     pannedY += deltaY;
     updateTransform();
     updateDebugDisplay();
 };
 
-window.adjustScale = function(delta) {
+window.adjustScale = function (delta) {
     scale = Math.max(0.1, Math.min(5, scale + delta));
     updateTransform();
     updateDebugDisplay();
 };
 
-window.logCurrentTransform = function() {
+window.logCurrentTransform = function () {
     console.log(`Current transform: scale=${scale.toFixed(2)}, pan=(${pannedX.toFixed(1)}, ${pannedY.toFixed(1)})`);
     console.log(`Transform string: translate(-50%, -50%) translate(${pannedX}px, ${pannedY}px) scale(${scale})`);
 };
@@ -215,7 +234,7 @@ function updateDebugDisplay() {
     const scaleEl = document.getElementById('debug-scale');
     const panXEl = document.getElementById('debug-pan-x');
     const panYEl = document.getElementById('debug-pan-y');
-    
+
     if (scaleEl) scaleEl.textContent = scale.toFixed(2);
     if (panXEl) panXEl.textContent = pannedX.toFixed(1);
     if (panYEl) panYEl.textContent = pannedY.toFixed(1);
@@ -274,7 +293,7 @@ function closeAdminPasswordModal() {
 
 function checkAdminPassword() {
     const password = adminPasswordInput.value.trim();
-    
+
     if (password === ADMIN_PASSWORD) {
         adminModeEnabled = true;
         toggleEditModeBtn.style.display = 'inline-block';
@@ -304,7 +323,7 @@ function disableAdminMode() {
     adminModeEnabled = false;
     toggleEditModeBtn.style.display = 'none';
     updateToolbarVisibility();
-    
+
     // 編集モードが有効な場合は終了
     if (isEditMode) {
         isEditMode = false;
@@ -349,12 +368,12 @@ function setupEditMode() {
         if (confirm('全ての座席を削除しますか？この操作は取り消せません。')) {
             layoutData.seats = [];
             deselectAllSeats();
-            
+
             // Clear all occupancy data as well
             occupancyData = {};
-            
+
             renderSeats();
-            
+
             // Also clear occupancy data on server
             clearAllOccupancyData();
         }
@@ -377,7 +396,7 @@ function setupEditMode() {
         if (e.key === 'r' || e.key === 'R') rotateSelectedSeats();
         if (e.key === 'Delete' || e.key === 'Backspace') deleteSelectedSeats();
         if (e.key === 'Escape') deselectAllSeats();
-        
+
         // Copy/Paste shortcuts
         if (e.ctrlKey && e.key === 'c') {
             e.preventDefault();
@@ -522,7 +541,7 @@ function updateSelectionUI() {
 
 function startSelectionBox(e) {
     if (e.button !== 0) return; // Only left click
-    
+
     isSelecting = true;
     isDragOperation = false;
 
@@ -567,7 +586,7 @@ function handleSelectionBoxMove(e) {
 
 function handleSelectionBoxEnd(e) {
     if (!isSelecting) return;
-    
+
     isSelecting = false;
     window.removeEventListener('mousemove', handleSelectionBoxMove);
     window.removeEventListener('mouseup', handleSelectionBoxEnd);
@@ -694,12 +713,12 @@ function handleSeatDrag(e) {
         const cx = seat.x + seat.width / 2;
         const cy = seat.y + seat.height / 2;
         const rotation = (seat.rotation || 0) * Math.PI / 180;
-        
+
         const cos = Math.cos(rotation);
         const sin = Math.sin(rotation);
         const hw = seat.width / 2;
         const hh = seat.height / 2;
-        
+
         // Local coordinates of corners (before rotation)
         const localCorners = [
             { x: -hw, y: -hh }, // top-left
@@ -707,7 +726,7 @@ function handleSeatDrag(e) {
             { x: hw, y: hh },   // bottom-right
             { x: -hw, y: hh }   // bottom-left
         ];
-        
+
         // Apply rotation and translation
         return localCorners.map(corner => ({
             x: cx + corner.x * cos - corner.y * sin,
@@ -718,28 +737,28 @@ function handleSeatDrag(e) {
     // Helper function to get edge midpoints and directions
     function getSeatEdges(seat) {
         const corners = getSeatCorners(seat);
-        
+
         return [
             { // top edge (0->1)
-                start: corners[0], 
+                start: corners[0],
                 end: corners[1],
                 mid: { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 },
                 name: 'top'
             },
             { // right edge (1->2)
-                start: corners[1], 
+                start: corners[1],
                 end: corners[2],
                 mid: { x: (corners[1].x + corners[2].x) / 2, y: (corners[1].y + corners[2].y) / 2 },
                 name: 'right'
             },
             { // bottom edge (2->3)
-                start: corners[2], 
+                start: corners[2],
                 end: corners[3],
                 mid: { x: (corners[2].x + corners[3].x) / 2, y: (corners[2].y + corners[3].y) / 2 },
                 name: 'bottom'
             },
             { // left edge (3->0)
-                start: corners[3], 
+                start: corners[3],
                 end: corners[0],
                 mid: { x: (corners[3].x + corners[0].x) / 2, y: (corners[3].y + corners[0].y) / 2 },
                 name: 'left'
@@ -758,34 +777,34 @@ function handleSeatDrag(e) {
             x: edge2.end.x - edge2.start.x,
             y: edge2.end.y - edge2.start.y
         };
-        
+
         // Normalize direction vectors
         const len1 = Math.sqrt(dir1.x * dir1.x + dir1.y * dir1.y);
         const len2 = Math.sqrt(dir2.x * dir2.x + dir2.y * dir2.y);
-        
+
         if (len1 === 0 || len2 === 0) return null;
-        
+
         dir1.x /= len1;
         dir1.y /= len1;
         dir2.x /= len2;
         dir2.y /= len2;
-        
+
         // Check if edges are parallel (dot product close to ±1)
         const dotProduct = dir1.x * dir2.x + dir1.y * dir2.y;
         if (Math.abs(Math.abs(dotProduct) - 1) > 0.1) return null; // Not parallel enough
-        
+
         // Calculate perpendicular vector to edge1
         const perp = { x: -dir1.y, y: dir1.x };
-        
+
         // Vector from edge1 midpoint to edge2 midpoint
         const midDiff = {
             x: edge2.mid.x - edge1.mid.x,
             y: edge2.mid.y - edge1.mid.y
         };
-        
+
         // Distance is projection onto perpendicular
         const distance = midDiff.x * perp.x + midDiff.y * perp.y;
-        
+
         return {
             distance: Math.abs(distance),
             offsetX: perp.x * distance,
@@ -797,20 +816,20 @@ function handleSeatDrag(e) {
     // Check each dragging seat against each stationary seat
     for (const d of dragging) {
         const dEdges = getSeatEdges(d);
-        
+
         for (const s of stationary) {
             const sEdges = getSeatEdges(s);
-            
+
             // Check all edge combinations
             for (const dEdge of dEdges) {
                 for (const sEdge of sEdges) {
                     const snapResult = calculateEdgeSnap(dEdge, sEdge);
-                    
+
                     if (snapResult && snapResult.distance <= SNAP_THRESH) {
                         // Determine which axis this snap affects more
                         const absOffsetX = Math.abs(snapResult.offsetX);
                         const absOffsetY = Math.abs(snapResult.offsetY);
-                        
+
                         if (absOffsetX > absOffsetY) {
                             // X-axis dominant
                             if (snapResult.distance < minDistX) {
@@ -885,32 +904,32 @@ function deleteSelectedSeats() {
 
 function copySelectedSeats() {
     if (selectedSeatIds.size === 0) return;
-    
+
     copiedSeats = layoutData.seats
         .filter(s => selectedSeatIds.has(s.id))
         .map(seat => ({ ...seat })); // Deep copy
-    
+
     console.log(`${copiedSeats.length} 席をコピーしました`);
 }
 
 function pasteSeats() {
     if (copiedSeats.length === 0) return;
-    
+
     const newSeats = [];
-    
+
     copiedSeats.forEach(copiedSeat => {
         // Extract prefix from original ID (including special seats like 外出, 在宅)
         const match = copiedSeat.id.match(/^(.+)-\d+$/);
         let prefix = 'A';
-        
+
         if (match) {
             prefix = match[1]; // This will be "外出", "在宅", "A", "B", etc.
         }
-        
+
         // Find next available number for this prefix
         const nextNumber = getNextAvailableNumber(prefix);
         const newId = `${prefix}-${nextNumber}`;
-        
+
         // Create new seat with offset position
         const newSeat = {
             ...copiedSeat,
@@ -919,26 +938,26 @@ function pasteSeats() {
             x: copiedSeat.x + pasteOffset.x,
             y: copiedSeat.y + pasteOffset.y
         };
-        
+
         layoutData.seats.push(newSeat);
         newSeats.push(newSeat);
     });
-    
+
     // Select the newly pasted seats
     deselectAllSeats();
     newSeats.forEach(seat => selectedSeatIds.add(seat.id));
     updateSelectionUI();
-    
+
     // Increment paste offset for next paste
     pasteOffset.x += 20;
     pasteOffset.y += 20;
-    
+
     // Reset offset if it gets too large
     if (pasteOffset.x > 100) {
         pasteOffset.x = 20;
         pasteOffset.y = 20;
     }
-    
+
     console.log(`${newSeats.length} 席をペーストしました`);
 }
 
@@ -952,24 +971,24 @@ function getNextAvailableNumber(prefix) {
             return match ? parseInt(match[1]) : 0;
         })
         .filter(num => !isNaN(num));
-    
+
     if (existingNumbers.length === 0) return 1;
-    
+
     // Find the first gap in the sequence, or return max + 1
     existingNumbers.sort((a, b) => a - b);
-    
+
     for (let i = 1; i <= existingNumbers[existingNumbers.length - 1] + 1; i++) {
         if (!existingNumbers.includes(i)) {
             return i;
         }
     }
-    
+
     return existingNumbers[existingNumbers.length - 1] + 1;
 }
 
 // Helper function to get display label (hide numbers for special seats)
 function getSeatDisplayLabel(seatId) {
-    if (seatId.includes('外出-') || seatId.includes('在宅-')) {
+    if (seatId.includes('外出-') || seatId.includes('在宅-') || seatId.includes('メモ-')) {
         // Remove the number part for display
         return seatId.replace(/-\d+$/, '');
     }
@@ -978,51 +997,51 @@ function getSeatDisplayLabel(seatId) {
 
 function startSeatMove(e, fromSeatId, personName) {
     if (isEditMode) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     isMovingSeat = true;
     movingFromSeatId = fromSeatId;
     movingPersonName = personName;
-    
+
     document.body.style.cursor = 'move';
-    
+
     // Add visual feedback
     const movingEl = document.querySelector(`.seat[data-id="${fromSeatId}"]`);
     if (movingEl) {
         movingEl.style.opacity = '0.7';
         movingEl.style.border = '2px dashed #f59e0b';
     }
-    
+
     // Add event listeners for drop
     document.addEventListener('mouseup', handleSeatMoveEnd);
-    
+
     console.log(`Started moving ${personName} from seat ${fromSeatId}`);
 }
 
 function handleSeatMoveEnd(e) {
     if (!isMovingSeat) return;
-    
+
     // Find the seat element under the mouse
     const elementUnderMouse = document.elementFromPoint(e.clientX, e.clientY);
     const targetSeatEl = elementUnderMouse?.closest('.seat');
-    
+
     if (targetSeatEl) {
         const toSeatId = targetSeatEl.dataset.id;
         const targetOccupant = occupancyData[toSeatId];
-        
+
         // Check if target seat is empty
         if (!targetOccupant && toSeatId !== movingFromSeatId) {
             // Show confirmation dialog
             const confirmed = confirm(`${movingPersonName}さんを座席${movingFromSeatId}から座席${toSeatId}に移動しますか？`);
-            
+
             if (confirmed) {
                 movePerson(movingFromSeatId, toSeatId, movingPersonName);
             }
         }
     }
-    
+
     // Clean up
     cleanupSeatMove();
 }
@@ -1035,26 +1054,26 @@ async function movePerson(fromSeatId, toSeatId, personName) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ seatId: fromSeatId })
         });
-        
+
         // Add to new seat
         await fetch(API_OCCUPANCY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ seatId: toSeatId, name: personName })
         });
-        
+
         // Update local data
         delete occupancyData[fromSeatId];
         occupancyData[toSeatId] = {
             name: personName,
             timestamp: new Date().toISOString()
         };
-        
+
         // Re-render seats
         renderSeats();
-        
+
         console.log(`Moved ${personName} from ${fromSeatId} to ${toSeatId}`);
-        
+
     } catch (error) {
         console.error('Error moving person:', error);
         alert('座席移動に失敗しました');
@@ -1064,7 +1083,7 @@ async function movePerson(fromSeatId, toSeatId, personName) {
 function cleanupSeatMove() {
     isMovingSeat = false;
     document.body.style.cursor = '';
-    
+
     // Remove visual feedback
     if (movingFromSeatId) {
         const movingEl = document.querySelector(`.seat[data-id="${movingFromSeatId}"]`);
@@ -1073,10 +1092,10 @@ function cleanupSeatMove() {
             movingEl.style.border = '';
         }
     }
-    
+
     movingFromSeatId = null;
     movingPersonName = null;
-    
+
     document.removeEventListener('mouseup', handleSeatMoveEnd);
 }
 
@@ -1137,8 +1156,8 @@ function renderSeats() {
                 <div class="seat-occupant"></div>
                 <div class="seat-number-overlay">${getSeatDisplayLabel(seat.id)}</div>
             `;
-            // 外出・在宅の場合はラベルを非表示
-            if (seat.id.includes('外出-') || seat.id.includes('在宅-')) {
+            // 外出・在宅・メモの場合はラベルを非表示
+            if (seat.id.includes('外出-') || seat.id.includes('在宅-') || seat.id.includes('メモ-')) {
                 const numberEl = seatEl.querySelector('.seat-number-overlay');
                 if (numberEl) numberEl.style.display = 'none';
             }
@@ -1162,18 +1181,30 @@ function renderSeats() {
         if (occupant && occupant.name) {
             seatEl.classList.add('occupied');
             seatEl.querySelector('.seat-occupant').textContent = occupant.name;
+
+            // Apply selected color gradient
+            const palette = COLOR_PALETTES[currentTheme] || COLOR_PALETTES.dark;
+            const colorIdx = occupant.colorIndex !== undefined ? occupant.colorIndex : 0;
+            const baseColor = palette[colorIdx] || (currentTheme === 'light' ? '#f97316' : '#667eea');
+
+            // Generate gradient by darkening the base color
+            const endColor = adjustColor(baseColor, -20);
+            seatEl.style.background = `linear-gradient(135deg, ${baseColor} 0%, ${endColor} 100%)`;
+            seatEl.style.borderColor = baseColor;
         } else {
             seatEl.classList.remove('occupied');
             seatEl.querySelector('.seat-occupant').textContent = '';
+            seatEl.style.background = ''; // Use default from CSS
+            seatEl.style.borderColor = '';
         }
 
         // Calculate text rotation based on seat rotation
         const seatRotation = seat.rotation || 0;
         let textRotation = 0;
-        
+
         // Normalize rotation to 0-360 range
         const normalizedRotation = ((seatRotation % 360) + 360) % 360;
-        
+
         // Map seat rotation to text rotation for readability
         if (normalizedRotation >= 0 && normalizedRotation < 45) {
             textRotation = 0;
@@ -1195,14 +1226,14 @@ function renderSeats() {
 
         const occupantEl = seatEl.querySelector('.seat-occupant');
         const numberEl = seatEl.querySelector('.seat-number-overlay');
-        
+
         // Apply the calculated text rotation (independent of seat rotation)
         occupantEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
         // ラベルは右下に固定（回転なし）
         numberEl.style.transform = 'none';
-        
-        // 外出・在宅の場合はラベルを非表示
-        if (seat.id.includes('外出-') || seat.id.includes('在宅-')) {
+
+        // 外出・在宅・メモの場合はラベルを非表示
+        if (seat.id.includes('外出-') || seat.id.includes('在宅-') || seat.id.includes('メモ-')) {
             numberEl.style.display = 'none';
         } else {
             numberEl.style.display = 'block';
@@ -1218,7 +1249,7 @@ function setupZoomPan() {
     // Wheel zoom and pan
     container.addEventListener('wheel', (e) => {
         e.preventDefault();
-        
+
         // If holding Ctrl key, zoom instead of pan
         if (e.ctrlKey) {
             const zoomStep = 0.15;
@@ -1239,7 +1270,7 @@ function setupZoomPan() {
             updateTransform();
             return;
         }
-        
+
         // If holding middle button, pan
         if (e.buttons === 4) {
             pannedX -= e.deltaX;
@@ -1282,7 +1313,7 @@ function setupZoomPan() {
         // Regular pan only in non-edit mode
         if (!isEditMode && e.button === 0) {
             if (e.target.closest('.seat') || e.target.closest('.toolbar')) return;
-            
+
             isDraggingMap = true;
             mapStartX = e.clientX - pannedX;
             mapStartY = e.clientY - pannedY;
@@ -1312,7 +1343,7 @@ function setupZoomPan() {
             isPanningWithWheel = false;
             container.style.cursor = isEditMode ? 'crosshair' : 'grab';
         }
-        
+
         if (isDraggingMap) {
             isDraggingMap = false;
             container.style.cursor = isEditMode ? 'crosshair' : 'grab';
@@ -1320,18 +1351,18 @@ function setupZoomPan() {
     });
 
     // Zoom controls
-    zoomInBtn.addEventListener('click', () => { 
+    zoomInBtn.addEventListener('click', () => {
         const newScale = Math.min(scale * 1.3, 5);
         animateToTransform(newScale, pannedX, pannedY);
     });
-    zoomOutBtn.addEventListener('click', () => { 
+    zoomOutBtn.addEventListener('click', () => {
         const newScale = Math.max(scale / 1.3, 0.2);
         animateToTransform(newScale, pannedX, pannedY);
     });
     resetZoomBtn.addEventListener('click', () => {
         fitToView();
     });
-    
+
     // Rotate view button
     const rotateViewBtn = document.getElementById('rotate-view');
     rotateViewBtn.addEventListener('click', () => {
@@ -1343,68 +1374,68 @@ function setupZoomPan() {
     searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSearch(); });
     searchInput.addEventListener('input', handleSearchInput);
 
-function rotateView() {
-    viewRotation = (viewRotation + 90) % 360;
-    
-    // Animate the rotation
-    const startRotation = viewRotation - 90;
-    const targetRotation = viewRotation;
-    const duration = 400; // 400ms animation
-    const startTime = performance.now();
-    
-    function animate(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Ease-out cubic function for smooth rotation
-        const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-        
-        // Interpolate rotation
-        const currentRotation = startRotation + (targetRotation - startRotation) * easeOutCubic;
-        
-        // Apply rotation
-        mapWrapper.style.transform = `translate(-50%, -50%) translate(${pannedX}px, ${pannedY}px) scale(${scale}) rotate(${currentRotation}deg)`;
-        
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        } else {
-            // Ensure final state is set
-            updateTransform();
+    function rotateView() {
+        viewRotation = (viewRotation + 90) % 360;
+
+        // Animate the rotation
+        const startRotation = viewRotation - 90;
+        const targetRotation = viewRotation;
+        const duration = 400; // 400ms animation
+        const startTime = performance.now();
+
+        function animate(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease-out cubic function for smooth rotation
+            const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+
+            // Interpolate rotation
+            const currentRotation = startRotation + (targetRotation - startRotation) * easeOutCubic;
+
+            // Apply rotation
+            mapWrapper.style.transform = `translate(-50%, -50%) translate(${pannedX}px, ${pannedY}px) scale(${scale}) rotate(${currentRotation}deg)`;
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Ensure final state is set
+                updateTransform();
+            }
         }
+
+        requestAnimationFrame(animate);
     }
-    
-    requestAnimationFrame(animate);
-}
 
-// Search Logic (Compact)
-function handleSearchInput() {
-    const query = searchInput.value.trim().toLowerCase();
-    searchResults.innerHTML = '';
-    if (!query) { searchResults.classList.add('hidden'); return; }
-    const matches = Object.entries(occupancyData).filter(([_, d]) => d?.name?.toLowerCase().includes(query));
-    if (matches.length) {
-        matches.forEach(([id, d]) => {
-            const div = document.createElement('div');
-            div.className = 'search-result-item';
-            div.textContent = `${d.name} (${getSeatDisplayLabel(id)})`;
-            div.onclick = () => { panToSeat(id); highlightSeat(id); searchResults.classList.add('hidden'); };
-            searchResults.appendChild(div);
-        });
-        searchResults.classList.remove('hidden');
-    } else { searchResults.classList.add('hidden'); }
-}
+    // Search Logic (Compact)
+    function handleSearchInput() {
+        const query = searchInput.value.trim().toLowerCase();
+        searchResults.innerHTML = '';
+        if (!query) { searchResults.classList.add('hidden'); return; }
+        const matches = Object.entries(occupancyData).filter(([_, d]) => d?.name?.toLowerCase().includes(query));
+        if (matches.length) {
+            matches.forEach(([id, d]) => {
+                const div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.textContent = `${d.name} (${getSeatDisplayLabel(id)})`;
+                div.onclick = () => { panToSeat(id); highlightSeat(id); searchResults.classList.add('hidden'); };
+                searchResults.appendChild(div);
+            });
+            searchResults.classList.remove('hidden');
+        } else { searchResults.classList.add('hidden'); }
+    }
 
-function handleSearch() {
-    const query = searchInput.value.trim().toLowerCase();
-    const match = Object.entries(occupancyData).find(([_, d]) => d?.name?.toLowerCase().includes(query));
-    if (match) { panToSeat(match[0]); highlightSeat(match[0]); }
-}
+    function handleSearch() {
+        const query = searchInput.value.trim().toLowerCase();
+        const match = Object.entries(occupancyData).find(([_, d]) => d?.name?.toLowerCase().includes(query));
+        if (match) { panToSeat(match[0]); highlightSeat(match[0]); }
+    }
 }
 
 function updateTransform() {
     // Apply view rotation and then the usual transform
     mapWrapper.style.transform = `translate(-50%, -50%) translate(${pannedX}px, ${pannedY}px) scale(${scale}) rotate(${viewRotation}deg)`;
-    
+
     // Update cursor based on mode
     const container = document.querySelector('.map-container-outer');
     if (isEditMode) {
@@ -1417,29 +1448,29 @@ function updateTransform() {
 function fitToView() {
     // Always fit to the background image (layout.svg) instead of seats
     const layoutImage = document.getElementById('layout-image');
-    
+
     if (layoutImage && layoutImage.offsetWidth > 0 && layoutImage.offsetHeight > 0) {
         // Fit to background image
         const imageWidth = layoutImage.offsetWidth;
         const imageHeight = layoutImage.offsetHeight;
-        
+
         // Get container dimensions
         const container = document.querySelector('.map-container-outer');
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
-        
+
         // Add some padding
         const padding = 50;
-        
+
         // Calculate scale to fit image with padding
         const scaleX = (containerWidth - padding * 2) / imageWidth;
         const scaleY = (containerHeight - padding * 2) / imageHeight;
         scale = Math.min(scaleX, scaleY, 2.0); // Max scale of 2.0
-        
+
         // Center the image
         const targetPannedX = 0;
         const targetPannedY = 0;
-        
+
         animateToTransform(scale, targetPannedX, targetPannedY);
     } else if (layoutData.seats.length > 0) {
         // Fallback: fit to seats if no background image
@@ -1454,18 +1485,18 @@ function fitToSeats() {
     // Calculate bounding box of all seats
     let minX = Infinity, minY = Infinity;
     let maxX = -Infinity, maxY = -Infinity;
-    
+
     layoutData.seats.forEach(seat => {
         // For rotated seats, we need to calculate the actual bounding box
         const cx = seat.x + seat.width / 2;
         const cy = seat.y + seat.height / 2;
         const rotation = (seat.rotation || 0) * Math.PI / 180;
-        
+
         const cos = Math.cos(rotation);
         const sin = Math.sin(rotation);
         const hw = seat.width / 2;
         const hh = seat.height / 2;
-        
+
         // Calculate rotated corners
         const corners = [
             { x: cx + (-hw * cos - (-hh) * sin), y: cy + (-hw * sin + (-hh) * cos) },
@@ -1473,7 +1504,7 @@ function fitToSeats() {
             { x: cx + (hw * cos - hh * sin), y: cy + (hw * sin + hh * cos) },
             { x: cx + (-hw * cos - hh * sin), y: cy + (-hw * sin + hh * cos) }
         ];
-        
+
         corners.forEach(corner => {
             minX = Math.min(minX, corner.x);
             minY = Math.min(minY, corner.y);
@@ -1481,33 +1512,33 @@ function fitToSeats() {
             maxY = Math.max(maxY, corner.y);
         });
     });
-    
+
     // Add some padding
     const padding = 50;
     minX -= padding;
     minY -= padding;
     maxX += padding;
     maxY += padding;
-    
+
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
     const contentCenterX = (minX + maxX) / 2;
     const contentCenterY = (minY + maxY) / 2;
-    
+
     // Get container dimensions
     const container = document.querySelector('.map-container-outer');
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    
+
     // Calculate scale to fit content
     const scaleX = containerWidth / contentWidth;
     const scaleY = containerHeight / contentHeight;
     scale = Math.min(scaleX, scaleY, 2.0); // Max scale of 2.0
-    
+
     // Calculate pan to center content
     const targetPannedX = -contentCenterX * scale + containerWidth / 2;
     const targetPannedY = -contentCenterY * scale + containerHeight / 2;
-    
+
     animateToTransform(scale, targetPannedX, targetPannedY);
 }
 
@@ -1521,11 +1552,11 @@ function handleSearchInput() {
         matches.forEach(([id, d]) => {
             const div = document.createElement('div');
             div.className = 'search-result-item';
-            div.textContent = `${d.name} (${id})`;
-            div.onclick = () => { 
-                panToSeat(id); 
+            div.textContent = `${d.name} (${getSeatDisplayLabel(id)})`;
+            div.onclick = () => {
+                panToSeat(id);
                 setTimeout(() => highlightSeat(id), 100); // Slight delay to ensure pan starts first
-                searchResults.classList.add('hidden'); 
+                searchResults.classList.add('hidden');
             };
             searchResults.appendChild(div);
         });
@@ -1556,21 +1587,16 @@ function panToSeat(id) {
     const containerHeight = container.clientHeight;
 
     // Set a fixed zoom level for search results
-    const targetScale = 1.5;
-    
-    // Use the original working approach (no rotation compensation needed)
-    const scaledSeatCenterX = seatCenterX * targetScale;
-    const scaledSeatCenterY = seatCenterY * targetScale;
-    
-    const basePanX = -scaledSeatCenterX;
-    const basePanY = -scaledSeatCenterY;
-    
-    // Manual adjustment offsets (your measured values that worked)
-    const adjustmentX = 2370;  // Your measured value that worked
-    const adjustmentY = 2650;  // Your measured value that worked
-    
-    const targetPannedX = basePanX + adjustmentX;
-    const targetPannedY = basePanY + adjustmentY;
+    const targetScale = 1.2;
+
+    // Use the logic derived from debugging:
+    // PannedX/Y is the offset from the map's CENTER to the container's center.
+    // Logical map width/height is layoutContainer.offsetWidth/Height.
+    const mapWidth = layoutContainer.offsetWidth;
+    const mapHeight = layoutContainer.offsetHeight;
+
+    const targetPannedX = (mapWidth / 2 - seatCenterX) * targetScale;
+    const targetPannedY = (mapHeight / 2 - seatCenterY) * targetScale;
 
     // Debug logging (disabled for production)
     /*
@@ -1579,10 +1605,10 @@ function panToSeat(id) {
     console.log(`Seat center: (${seatCenterX.toFixed(1)}, ${seatCenterY.toFixed(1)})`);
     console.log(`Final pan: (${targetPannedX.toFixed(1)}, ${targetPannedY.toFixed(1)})`);
     */
-    
+
     // Add debug overlay to show target center (disabled for production)
     // addDebugOverlay(seatCenterX, seatCenterY, containerWidth, containerHeight);
-    
+
     // Animate to target position and scale
     animateToTransform(targetScale, targetPannedX, targetPannedY);
 }
@@ -1591,7 +1617,7 @@ function addDebugOverlay(seatX, seatY, containerWidth, containerHeight) {
     // Remove existing debug overlay
     const existingOverlay = document.getElementById('debug-overlay');
     if (existingOverlay) existingOverlay.remove();
-    
+
     // Create debug overlay
     const overlay = document.createElement('div');
     overlay.id = 'debug-overlay';
@@ -1604,27 +1630,27 @@ function addDebugOverlay(seatX, seatY, containerWidth, containerHeight) {
         pointer-events: none;
         z-index: 10000;
     `;
-    
+
     // Add screen center crosshair
     const centerCross = document.createElement('div');
     centerCross.style.cssText = `
         position: absolute;
-        left: ${containerWidth/2 - 10}px;
-        top: ${containerHeight/2 - 10}px;
+        left: ${containerWidth / 2 - 10}px;
+        top: ${containerHeight / 2 - 10}px;
         width: 20px;
         height: 20px;
         border: 2px solid red;
         background: rgba(255,0,0,0.3);
     `;
     overlay.appendChild(centerCross);
-    
+
     // Add screen center label
     const centerLabel = document.createElement('div');
     centerLabel.textContent = 'Screen Center';
     centerLabel.style.cssText = `
         position: absolute;
-        left: ${containerWidth/2 + 15}px;
-        top: ${containerHeight/2 - 10}px;
+        left: ${containerWidth / 2 + 15}px;
+        top: ${containerHeight / 2 - 10}px;
         color: red;
         font-weight: bold;
         background: white;
@@ -1633,9 +1659,9 @@ function addDebugOverlay(seatX, seatY, containerWidth, containerHeight) {
         font-size: 12px;
     `;
     overlay.appendChild(centerLabel);
-    
+
     document.body.appendChild(overlay);
-    
+
     // Remove overlay after 5 seconds
     setTimeout(() => {
         if (overlay.parentNode) overlay.remove();
@@ -1646,31 +1672,31 @@ function animateToTransform(targetScale, targetPannedX, targetPannedY) {
     const startScale = scale;
     const startPannedX = pannedX;
     const startPannedY = pannedY;
-    
+
     const duration = 800; // 800ms animation
     const startTime = performance.now();
-    
+
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        
+
         // Ease-in-out cubic function for smooth acceleration/deceleration
-        const easeInOutCubic = progress < 0.5 
-            ? 4 * progress * progress * progress 
+        const easeInOutCubic = progress < 0.5
+            ? 4 * progress * progress * progress
             : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-        
+
         // Interpolate values
         scale = startScale + (targetScale - startScale) * easeInOutCubic;
         pannedX = startPannedX + (targetPannedX - startPannedX) * easeInOutCubic;
         pannedY = startPannedY + (targetPannedY - startPannedY) * easeInOutCubic;
-        
+
         updateTransform();
-        
+
         if (progress < 1) {
             requestAnimationFrame(animate);
         }
     }
-    
+
     requestAnimationFrame(animate);
 }
 
@@ -1691,7 +1717,7 @@ async function clearAllOccupancyData() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
-        
+
         if (response.ok) {
             // Clear local data
             occupancyData = {};
@@ -1724,7 +1750,7 @@ async function fetchLayout() {
         const data = await response.json();
         layoutData = data;
         renderSeats();
-        
+
         // Auto-fit view to show all seats
         fitToView();
     } catch (error) {
@@ -1752,10 +1778,14 @@ async function handleSeatSubmit() {
         const response = await fetch(API_OCCUPANCY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ seatId: id, name })
+            body: JSON.stringify({ seatId: id, name, colorIndex: selectedColorIndex })
         });
 
         if (response.ok) {
+            // Save preferences
+            localStorage.setItem('lastUserName', name);
+            localStorage.setItem('lastColorIndex', selectedColorIndex);
+
             closeModal();
             fetchOccupancy();
         } else {
@@ -1787,18 +1817,122 @@ function openModal(seat) {
     selectedSeatIdInput.value = seat.id;
     modalTitle.textContent = `席番号: ${seat.id}`;
 
-    if (seat.name) {
-        userNameInput.value = seat.name;
+    // Reset color picker visibility
+    const container = document.getElementById('color-picker-container');
+    if (container) container.classList.remove('visible');
+    const toggleBtn = document.getElementById('toggle-color-btn');
+    if (toggleBtn) toggleBtn.innerHTML = '<i class="fas fa-palette"></i> カラー変更';
+
+    // Set color index
+    const occupant = occupancyData[seat.id];
+    selectedColorIndex = (occupant && occupant.colorIndex !== undefined) ? occupant.colorIndex : 0;
+
+    if (occupant && occupant.name) {
+        userNameInput.value = occupant.name;
         confirmSeatBtn.textContent = '更新する';
         leaveSeatBtn.classList.remove('hidden');
     } else {
-        userNameInput.value = '';
+        // New occupation: load last used name and color index from localStorage
+        userNameInput.value = localStorage.getItem('lastUserName') || '';
+        const savedColorIndex = localStorage.getItem('lastColorIndex');
+        if (savedColorIndex !== null) {
+            selectedColorIndex = parseInt(savedColorIndex);
+        } else {
+            selectedColorIndex = 0;
+        }
         confirmSeatBtn.textContent = '着席する';
         leaveSeatBtn.classList.add('hidden');
     }
 
+    // Generate color picker UI
+    renderColorPicker();
+
     modalOverlay.classList.remove('hidden');
     userNameInput.focus();
+}
+
+function toggleColorPicker() {
+    const container = document.getElementById('color-picker-container');
+    if (!container) return;
+
+    container.classList.toggle('visible');
+    const btn = document.getElementById('toggle-color-btn');
+    if (container.classList.contains('visible')) {
+        btn.innerHTML = '<i class="fas fa-chevron-up"></i> 閉じる';
+    } else {
+        btn.innerHTML = '<i class="fas fa-palette"></i> カラー変更';
+    }
+}
+
+function renderColorPicker() {
+    const grid = document.getElementById('color-picker-grid');
+    const preview = document.getElementById('current-color-preview');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    const palette = COLOR_PALETTES[currentTheme] || COLOR_PALETTES.dark;
+    const numColors = palette.length;
+    const radius = 105; // Distance from center
+    const centerX = 140; // Center of 280px container
+    const centerY = 140;
+
+    // Update preview
+    const currentColor = palette[selectedColorIndex] || palette[0];
+    const endColorPreview = adjustColor(currentColor, -20);
+    if (preview) {
+        preview.style.background = `linear-gradient(135deg, ${currentColor} 0%, ${endColorPreview} 100%)`;
+    }
+
+    palette.forEach((color, index) => {
+        const option = document.createElement('div');
+        option.className = 'color-option';
+        if (index === selectedColorIndex) option.classList.add('selected');
+
+        // Calculate position in circle
+        const angle = (index / numColors) * 2 * Math.PI - (Math.PI / 2); // Start from top
+        const x = centerX + radius * Math.cos(angle) - 14; // Subtract half width
+        const y = centerY + radius * Math.sin(angle) - 14;
+
+        option.style.left = `${x}px`;
+        option.style.top = `${y}px`;
+
+        const endColor = adjustColor(color, -20);
+        option.style.background = `linear-gradient(135deg, ${color} 0%, ${endColor} 100%)`;
+        option.title = `Color ${index + 1}`;
+
+        option.onclick = () => {
+            selectedColorIndex = index;
+            document.querySelectorAll('.color-option').forEach(el => el.classList.remove('selected'));
+            option.classList.add('selected');
+
+            // Update preview and donut appearance if selection changes
+            if (preview) {
+                preview.style.background = `linear-gradient(135deg, ${color} 0%, ${endColor} 100%)`;
+            }
+        };
+
+        grid.appendChild(option);
+    });
+}
+
+// Helper to darken colors for gradients
+function adjustColor(hex, amount) {
+    hex = hex.replace(/^#/, '');
+    if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+
+    r = Math.max(0, Math.min(255, r + amount));
+    g = Math.max(0, Math.min(255, g + amount));
+    b = Math.max(0, Math.min(255, b + amount));
+
+    const rr = r.toString(16).padStart(2, '0');
+    const gg = g.toString(16).padStart(2, '0');
+    const bb = b.toString(16).padStart(2, '0');
+
+    return `#${rr}${gg}${bb}`;
 }
 
 function closeModal() {
@@ -1819,6 +1953,14 @@ function toggleTheme() {
     document.body.className = currentTheme + '-theme';
     localStorage.setItem('theme', currentTheme);
     updateThemeIcon();
+
+    // Instantly refresh colors
+    renderSeats();
+
+    // If modal is open, refresh color picker too
+    if (!modalOverlay.classList.contains('hidden')) {
+        renderColorPicker();
+    }
 }
 
 function updateThemeIcon() {
