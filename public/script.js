@@ -1578,11 +1578,38 @@ function fitToSeats() {
 }
 
 // Search Logic (Compact)
+function normalizeKanji(str) {
+    if (!str) return "";
+    return str
+        .normalize('NFKC') // 全角・半角やカタカナの揺れを修正
+        .toLowerCase()
+        .replace(/[邉邊]/g, "辺")
+        .replace(/[齋齊斉]/g, "斎")
+        .replace(/髙/g, "高")
+        .replace(/﨑/g, "崎")
+        .replace(/栁/g, "柳")
+        .replace(/眞/g, "真")
+        .replace(/[嶋嶌]/g, "島")
+        .replace(/國/g, "国")
+        .replace(/廣/g, "広")
+        .replace(/惠/g, "恵")
+        .replace(/[濱濵]/g, "浜")
+        .replace(/澤/g, "沢")
+        .replace(/[ヶヶ箇个]/g, "ケ");
+}
+
 function handleSearchInput() {
-    const query = searchInput.value.trim().toLowerCase();
+    const rawQuery = searchInput.value.trim();
+    if (!rawQuery) { searchResults.innerHTML = ''; searchResults.classList.add('hidden'); return; }
+
+    const query = normalizeKanji(rawQuery);
     searchResults.innerHTML = '';
-    if (!query) { searchResults.classList.add('hidden'); return; }
-    const matches = Object.entries(occupancyData).filter(([_, d]) => d?.name?.toLowerCase().includes(query));
+
+    const matches = Object.entries(occupancyData).filter(([_, d]) => {
+        if (!d || !d.name) return false;
+        return normalizeKanji(d.name).includes(query);
+    });
+
     if (matches.length) {
         matches.forEach(([id, d]) => {
             const div = document.createElement('div');
@@ -1590,7 +1617,7 @@ function handleSearchInput() {
             div.textContent = `${d.name} (${getSeatDisplayLabel(id)})`;
             div.onclick = () => {
                 panToSeat(id);
-                setTimeout(() => highlightSeat(id), 100); // Slight delay to ensure pan starts first
+                setTimeout(() => highlightSeat(id), 100);
                 searchResults.classList.add('hidden');
             };
             searchResults.appendChild(div);
@@ -1600,8 +1627,11 @@ function handleSearchInput() {
 }
 
 function handleSearch() {
-    const query = searchInput.value.trim().toLowerCase();
-    const match = Object.entries(occupancyData).find(([_, d]) => d?.name?.toLowerCase().includes(query));
+    const query = normalizeKanji(searchInput.value.trim());
+    const match = Object.entries(occupancyData).find(([_, d]) => {
+        if (!d || !d.name) return false;
+        return normalizeKanji(d.name).includes(query);
+    });
     if (match) { panToSeat(match[0]); highlightSeat(match[0]); }
 }
 
