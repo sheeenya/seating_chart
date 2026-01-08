@@ -3,7 +3,7 @@ const API_OCCUPANCY_URL = '/api/occupancy';
 const API_OCCUPANCY_LEAVE_URL = '/api/occupancy/leave';
 const API_OCCUPANCY_CLEAR_ALL_URL = '/api/occupancy/clear-all';
 
-const POLL_INTERVAL = 3000; // 3 seconds
+const POLL_INTERVAL = 5000; // Increased to 5 seconds for better performance
 
 // DOM Elements
 const seatGrid = document.getElementById('seat-grid');
@@ -98,6 +98,12 @@ let viewRotation = 0; // 0, 90, 180, 270 degrees
 let isMovingSeat = false;
 let movingFromSeatId = null;
 let movingPersonName = null;
+
+// Performance Caches
+let seatElementCache = new Map();
+let lastOccupancyJson = '';
+let lastLayoutJson = '';
+let lastTheme = '';
 
 // Copy/Paste State
 let copiedSeats = [];
@@ -1141,13 +1147,41 @@ function updateSelectedSeatId(id) {
 // ---------------------------------------------------------
 
 function renderSeats() {
-    const currentIds = new Set(layoutData.seats.map(s => s.id));
-    Array.from(seatGrid.children).forEach(el => {
-        if (!currentIds.has(el.dataset.id)) el.remove();
-    });
+    // Dirty check for layout data
+    const currentLayoutJson = JSON.stringify(layoutData.seats);
+    const layoutChanged = currentLayoutJson !== lastLayoutJson;
+
+    // Dirty check for occupancy data
+    const currentOccupancyJson = JSON.stringify(occupancyData);
+    const occupancyChanged = currentOccupancyJson !== lastOccupancyJson;
+
+    // Theme check
+    const themeChanged = currentTheme !== lastTheme;
+
+    if (!layoutChanged && !occupancyChanged && !themeChanged && !isEditMode) {
+        return; // No changes, skip re-render
+    }
+
+    const lastOccupancy = lastOccupancyJson ? JSON.parse(lastOccupancyJson) : {};
+
+    if (layoutChanged) {
+        const currentIds = new Set(layoutData.seats.map(s => s.id));
+        Array.from(seatGrid.children).forEach(el => {
+            if (!currentIds.has(el.dataset.id)) {
+                el.remove();
+                seatElementCache.delete(el.dataset.id);
+            }
+        });
+        lastLayoutJson = currentLayoutJson;
+    }
 
     layoutData.seats.forEach(seat => {
-        let seatEl = seatGrid.querySelector(`.seat[data-id="${seat.id}"]`);
+        let seatEl = seatElementCache.get(seat.id);
+        if (!seatEl) {
+            seatEl = seatGrid.querySelector(`.seat[data-id="${seat.id}"]`);
+            if (seatEl) seatElementCache.set(seat.id, seatEl);
+        }
+
         if (!seatEl) {
             seatEl = document.createElement('div');
             seatEl.className = 'seat';
@@ -1156,90 +1190,83 @@ function renderSeats() {
                 <div class="seat-occupant"></div>
                 <div class="seat-number-overlay">${getSeatDisplayLabel(seat.id)}</div>
             `;
-            // 外出・在宅・メモの場合はラベルを非表示
             if (seat.id.includes('外出-') || seat.id.includes('在宅-') || seat.id.includes('メモ-')) {
                 const numberEl = seatEl.querySelector('.seat-number-overlay');
                 if (numberEl) numberEl.style.display = 'none';
             }
             setupSeatEvents(seatEl);
             seatGrid.appendChild(seatEl);
+            seatElementCache.set(seat.id, seatEl);
         }
 
-        seatEl.style.left = `${seat.x}px`;
-        seatEl.style.top = `${seat.y}px`;
-        seatEl.style.width = `${seat.width}px`;
-        seatEl.style.height = `${seat.height}px`;
-        seatEl.style.transform = `rotate(${seat.rotation || 0}deg)`;
+        // Only update layout properties if layout changed or in edit mode
+        if (layoutChanged || isEditMode) {
+            seatEl.style.left = `${seat.x}px`;
+            seatEl.style.top = `${seat.y}px`;
+            seatEl.style.width = `${seat.width}px`;
+            seatEl.style.height = `${seat.height}px`;
+            seatEl.style.transform = `rotate(${seat.rotation || 0}deg)`;
 
-        if (isEditMode && selectedSeatIds.has(seat.id)) {
-            seatEl.classList.add('selected');
-        } else {
-            seatEl.classList.remove('selected');
+            if (isEditMode && selectedSeatIds.has(seat.id)) {
+                seatEl.classList.add('selected');
+            } else {
+                seatEl.classList.remove('selected');
+            }
         }
 
+        // Update occupancy only if it changed
         const occupant = occupancyData[seat.id];
-        if (occupant && occupant.name) {
-            seatEl.classList.add('occupied');
-            seatEl.querySelector('.seat-occupant').textContent = occupant.name;
+        const lastOccupant = lastOccupancy[seat.id];
+        const occupantJson = JSON.stringify(occupant);
+        const lastOccupantJson = JSON.stringify(lastOccupant);
 
-            // Apply selected color gradient
-            const palette = COLOR_PALETTES[currentTheme] || COLOR_PALETTES.dark;
-            const colorIdx = occupant.colorIndex !== undefined ? occupant.colorIndex : 0;
-            const baseColor = palette[colorIdx] || (currentTheme === 'light' ? '#f97316' : '#667eea');
+        if (themeChanged || (occupancyChanged && occupantJson !== lastOccupantJson)) {
+            const occupantEl = seatEl.querySelector('.seat-occupant');
+            if (occupant && occupant.name) {
+                seatEl.classList.add('occupied');
+                occupantEl.textContent = occupant.name;
 
-            // Generate gradient by darkening the base color
-            const endColor = adjustColor(baseColor, -20);
-            seatEl.style.background = `linear-gradient(135deg, ${baseColor} 0%, ${endColor} 100%)`;
-            seatEl.style.borderColor = baseColor;
-        } else {
-            seatEl.classList.remove('occupied');
-            seatEl.querySelector('.seat-occupant').textContent = '';
-            seatEl.style.background = ''; // Use default from CSS
-            seatEl.style.borderColor = '';
+                const palette = COLOR_PALETTES[currentTheme] || COLOR_PALETTES.dark;
+                const colorIdx = occupant.colorIndex !== undefined ? occupant.colorIndex : 0;
+                const baseColor = palette[colorIdx] || (currentTheme === 'light' ? '#f97316' : '#667eea');
+                const endColor = adjustColor(baseColor, -20);
+                seatEl.style.background = `linear-gradient(135deg, ${baseColor} 0%, ${endColor} 100%)`;
+                seatEl.style.borderColor = baseColor;
+            } else {
+                seatEl.classList.remove('occupied');
+                occupantEl.textContent = '';
+                seatEl.style.background = '';
+                seatEl.style.borderColor = '';
+            }
         }
 
-        // Calculate text rotation based on seat rotation
-        const seatRotation = seat.rotation || 0;
-        let textRotation = 0;
+        // Handle text rotation (only if seat rotation or occupancy changed)
+        if (layoutChanged || occupancyChanged || isEditMode) {
+            const seatRotation = seat.rotation || 0;
+            let textRotation = 0;
+            const normalizedRotation = ((seatRotation % 360) + 360) % 360;
 
-        // Normalize rotation to 0-360 range
-        const normalizedRotation = ((seatRotation % 360) + 360) % 360;
+            if (normalizedRotation >= 0 && normalizedRotation < 45) textRotation = 0;
+            else if (normalizedRotation >= 45 && normalizedRotation < 90) textRotation = 45;
+            else if (normalizedRotation >= 90 && normalizedRotation < 135) textRotation = 90;
+            else if (normalizedRotation >= 135 && normalizedRotation < 180) textRotation = -45;
+            else if (normalizedRotation >= 180 && normalizedRotation < 225) textRotation = 0;
+            else if (normalizedRotation >= 225 && normalizedRotation < 270) textRotation = 45;
+            else if (normalizedRotation >= 270 && normalizedRotation < 315) textRotation = 270;
+            else textRotation = 315;
 
-        // Map seat rotation to text rotation for readability
-        if (normalizedRotation >= 0 && normalizedRotation < 45) {
-            textRotation = 0;
-        } else if (normalizedRotation >= 45 && normalizedRotation < 90) {
-            textRotation = 45;
-        } else if (normalizedRotation >= 90 && normalizedRotation < 135) {
-            textRotation = 90;
-        } else if (normalizedRotation >= 135 && normalizedRotation < 180) {
-            textRotation = -45; // -45度で読みやすく
-        } else if (normalizedRotation >= 180 && normalizedRotation < 225) {
-            textRotation = 0; // 0度で読みやすく
-        } else if (normalizedRotation >= 225 && normalizedRotation < 270) {
-            textRotation = 45; // 45度で読みやすく
-        } else if (normalizedRotation >= 270 && normalizedRotation < 315) {
-            textRotation = 270;
-        } else { // 315-360
-            textRotation = 315;
-        }
+            const occupantEl = seatEl.querySelector('.seat-occupant');
+            const numberEl = seatEl.querySelector('.seat-number-overlay');
+            occupantEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
 
-        const occupantEl = seatEl.querySelector('.seat-occupant');
-        const numberEl = seatEl.querySelector('.seat-number-overlay');
-
-        // Apply the calculated text rotation (independent of seat rotation)
-        occupantEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
-        // ラベルは右下に固定（回転なし）
-        numberEl.style.transform = 'none';
-
-        // 外出・在宅・メモの場合はラベルを非表示
-        if (seat.id.includes('外出-') || seat.id.includes('在宅-') || seat.id.includes('メモ-')) {
-            numberEl.style.display = 'none';
-        } else {
-            numberEl.style.display = 'block';
-            numberEl.textContent = getSeatDisplayLabel(seat.id);
+            if (!seat.id.includes('外出-') && !seat.id.includes('在宅-') && !seat.id.includes('メモ-')) {
+                numberEl.textContent = getSeatDisplayLabel(seat.id);
+            }
         }
     });
+
+    lastOccupancyJson = currentOccupancyJson;
+    lastTheme = currentTheme;
 }
 
 function setupZoomPan() {
@@ -1432,16 +1459,24 @@ function setupZoomPan() {
     }
 }
 
+// DOM Elements Cache for Performance
+let mapContainerOuterCache = null;
+
 function updateTransform() {
+    if (!mapContainerOuterCache) {
+        mapContainerOuterCache = document.querySelector('.map-container-outer');
+    }
+
     // Apply view rotation and then the usual transform
     mapWrapper.style.transform = `translate(-50%, -50%) translate(${pannedX}px, ${pannedY}px) scale(${scale}) rotate(${viewRotation}deg)`;
 
     // Update cursor based on mode
-    const container = document.querySelector('.map-container-outer');
-    if (isEditMode) {
-        container.style.cursor = 'crosshair';
-    } else {
-        container.style.cursor = isDraggingMap || isPanningWithWheel ? 'grabbing' : 'grab';
+    if (mapContainerOuterCache) {
+        if (isEditMode) {
+            mapContainerOuterCache.style.cursor = 'crosshair';
+        } else {
+            mapContainerOuterCache.style.cursor = isDraggingMap || isPanningWithWheel ? 'grabbing' : 'grab';
+        }
     }
 }
 
