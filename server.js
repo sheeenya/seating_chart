@@ -20,6 +20,16 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 const LAYOUT_FILE = path.join(DATA_DIR, 'layout.json');
 const OCCUPANCY_FILE = path.join(DATA_DIR, 'occupancy.json');
+const ROADMAP_FILE = path.join(DATA_DIR, 'roadmap.json');
+const FEEDBACK_FILE = path.join(DATA_DIR, 'feedback.json');
+
+// Ensure roadmap file exists
+if (!fs.existsSync(ROADMAP_FILE)) {
+    saveJSON(ROADMAP_FILE, { items: [] });
+} 
+if (!fs.existsSync(FEEDBACK_FILE)) {
+    saveJSON(FEEDBACK_FILE, { items: [] });
+}
 
 // Helper to load/save JSON
 function loadJSON(file, defaultVal) {
@@ -115,6 +125,108 @@ app.post('/api/occupancy/clear-all', (req, res) => {
     saveJSON(OCCUPANCY_FILE, occupancyData);
 
     res.json({ success: true, message: 'All occupancy data cleared', version: occupancyVersion });
+});
+
+// --- Roadmap Endpoints ---
+// Get roadmap (lazy loaded)
+app.get('/api/roadmap', (req, res) => {
+    const roadmap = loadJSON(ROADMAP_FILE, { items: [] });
+    res.json({ data: roadmap, version: fs.existsSync(ROADMAP_FILE) ? fs.statSync(ROADMAP_FILE).mtimeMs : Date.now() });
+});
+
+// Update roadmap (admin) - expects { roadmap: { items: [...] } }
+app.post('/api/roadmap', (req, res) => {
+    const { roadmap } = req.body;
+    if (!roadmap || !Array.isArray(roadmap.items)) {
+        return res.status(400).json({ error: 'Invalid roadmap format' });
+    }
+    saveJSON(ROADMAP_FILE, roadmap);
+    res.json({ success: true, version: fs.statSync(ROADMAP_FILE).mtimeMs });
+});
+
+// --- Feedback Endpoints ---
+function loadFeedback() {
+    return loadJSON(FEEDBACK_FILE, { items: [] });
+}
+
+function saveFeedback(data) {
+    saveJSON(FEEDBACK_FILE, data);
+    return fs.statSync(FEEDBACK_FILE).mtimeMs;
+}
+
+function createFeedbackId() {
+    return `fb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+app.get('/api/feedback', (req, res) => {
+    const feedback = loadFeedback();
+    res.json({ data: feedback, version: fs.existsSync(FEEDBACK_FILE) ? fs.statSync(FEEDBACK_FILE).mtimeMs : Date.now() });
+});
+
+app.post('/api/feedback', (req, res) => {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'Invalid feedback text' });
+    }
+    const feedback = loadFeedback();
+    const item = {
+        id: createFeedbackId(),
+        text: text.trim(),
+        score: 0,
+        adminComment: '',
+        createdAt: new Date().toISOString()
+    };
+    if (!item.text) {
+        return res.status(400).json({ error: 'Empty feedback text' });
+    }
+    feedback.items.unshift(item);
+    const version = saveFeedback(feedback);
+    res.json({ success: true, item, version });
+});
+
+app.post('/api/feedback/vote', (req, res) => {
+    const { id, delta } = req.body;
+    if (!id || ![-2, -1, 1, 2].includes(delta)) {
+        return res.status(400).json({ error: 'Invalid vote payload' });
+    }
+    const feedback = loadFeedback();
+    const idx = feedback.items.findIndex((item) => item.id === id);
+    if (idx === -1) {
+        return res.status(404).json({ error: 'Feedback not found' });
+    }
+    feedback.items[idx].score = (feedback.items[idx].score || 0) + delta;
+    if (feedback.items[idx].score <= -5) {
+        feedback.items.splice(idx, 1);
+    }
+    const version = saveFeedback(feedback);
+    res.json({ success: true, version });
+});
+
+app.post('/api/feedback/admin-comment', (req, res) => {
+    const { id, comment } = req.body;
+    if (!id || typeof comment !== 'string') {
+        return res.status(400).json({ error: 'Invalid comment payload' });
+    }
+    const feedback = loadFeedback();
+    const item = feedback.items.find((row) => row.id === id);
+    if (!item) {
+        return res.status(404).json({ error: 'Feedback not found' });
+    }
+    item.adminComment = comment.trim();
+    const version = saveFeedback(feedback);
+    res.json({ success: true, version });
+});
+
+app.delete('/api/feedback/:id', (req, res) => {
+    const { id } = req.params;
+    const feedback = loadFeedback();
+    const nextItems = feedback.items.filter((item) => item.id !== id);
+    if (nextItems.length === feedback.items.length) {
+        return res.status(404).json({ error: 'Feedback not found' });
+    }
+    feedback.items = nextItems;
+    const version = saveFeedback(feedback);
+    res.json({ success: true, version });
 });
 
 // --- Scheduled Tasks ---

@@ -38,6 +38,23 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="feedback-btn" class="tool-btn feedback-btn" title="ご意見ご要望">
+                    <svg class="feedback-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 10v4l10 3V7l-10 3z"></path>
+                        <path d="M9 15l1.2 5h3.2l-1.2-5"></path>
+                        <path d="M18 8v8"></path>
+                    </svg>
+                </button>
+                <!-- Roadmap button -->
+                <button id="roadmap-btn" class="tool-btn roadmap-btn" title="開発ロードマップ">
+                    <svg class="roadmap-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path class="roadmap-pole" d="M6 3v18"></path>
+                        <path class="roadmap-flag" d="M6 4h10l-2 3 2 3H6z"></path>
+                        <path class="roadmap-base" d="M3 21h8"></path>
+                    </svg>
+                </button>
                 <button id="theme-toggle" class="theme-toggle-btn" title="テーマを切り替え">
                     <svg id="theme-icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2">
@@ -59,7 +76,7 @@
                 <div class="status-indicator">
                     <span class="dot"></span>
                     <span id="connection-status">Live</span>
-                </div>
+                </div> 
             </div>
         </header>
 
@@ -163,6 +180,68 @@
                 <div class="modal-footer">
                     <button id="cancel-admin-btn" class="secondary-btn">キャンセル</button>
                     <button id="confirm-admin-btn" class="primary-btn">確認</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Roadmap Modal -->
+        <div id="roadmap-overlay" class="hidden">
+            <div class="modal roadmap-modal">
+                <div class="modal-header">
+                    <h2>開発ロードマップ</h2>
+                    <button class="close-btn" id="close-roadmap-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="roadmap-view" class="roadmap-view"></div>
+                    <div id="roadmap-editor" class="roadmap-editor hidden">
+                        <div id="roadmap-items"></div>
+                        <div class="roadmap-editor-actions">
+                            <button id="roadmap-add-btn" class="secondary-btn">項目を追加</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="roadmap-edit-btn" class="secondary-btn">編集</button>
+                    <button id="roadmap-save-btn" class="primary-btn hidden">保存</button>
+                    <button id="roadmap-cancel-btn" class="secondary-btn hidden">キャンセル</button>
+                </div>
+            </div>
+        </div> 
+
+        <!-- Feedback Modal -->
+        <div id="feedback-overlay" class="hidden">
+            <div class="modal feedback-modal">
+                <div class="modal-header">
+                    <h2>ご意見ご要望</h2>
+                    <button class="close-btn" id="close-feedback-modal">&times;</button>
+                </div>
+                <div class="modal-body feedback-body">
+                    <div id="feedback-bubbles" class="feedback-bubbles"></div>
+                    <div class="feedback-panel">
+                        <div class="feedback-selected" id="feedback-selected">
+                            <div class="feedback-selected-text">泡をクリックして評価できます。</div>
+                        </div>
+                        <div class="feedback-actions">
+                            <button id="feedback-up-btn" class="secondary-btn" disabled>👍</button>
+                            <button id="feedback-down-btn" class="secondary-btn" disabled>👎</button>
+                        </div>
+                        <div class="feedback-actions">
+                            <button id="feedback-delete-btn" class="secondary-btn hidden" style="color:red;">削除</button>
+                        </div>
+                        <div id="feedback-admin-panel" class="feedback-admin-panel hidden">
+                            <label class="feedback-admin-label" for="feedback-admin-input">管理者コメント</label>
+                            <textarea id="feedback-admin-input" class="roadmap-textarea" rows="3"
+                                placeholder="管理者コメントを入力..."></textarea>
+                            <div class="feedback-admin-actions">
+                                <button id="feedback-admin-save" class="secondary-btn">コメント保存</button>
+                                <button id="feedback-admin-delete" class="secondary-btn" style="color:red;">削除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="text" id="feedback-input" placeholder="自由にご意見を書いてください">
+                    <button id="feedback-submit-btn" class="primary-btn">投稿</button>
                 </div>
             </div>
         </div>

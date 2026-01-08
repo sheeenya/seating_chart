@@ -40,6 +40,39 @@ const closeAdminModalBtn = document.getElementById('close-admin-modal');
 const cancelAdminBtn = document.getElementById('cancel-admin-btn');
 const confirmAdminBtn = document.getElementById('confirm-admin-btn');
 
+// Roadmap elements
+const roadmapBtn = document.getElementById('roadmap-btn');
+const roadmapOverlay = document.getElementById('roadmap-overlay');
+const closeRoadmapModalBtn = document.getElementById('close-roadmap-modal');
+const roadmapView = document.getElementById('roadmap-view');
+const roadmapEditBtn = document.getElementById('roadmap-edit-btn');
+const roadmapSaveBtn = document.getElementById('roadmap-save-btn');
+const roadmapCancelBtn = document.getElementById('roadmap-cancel-btn');
+const roadmapEditor = document.getElementById('roadmap-editor');
+const roadmapItems = document.getElementById('roadmap-items');
+const roadmapAddBtn = document.getElementById('roadmap-add-btn');
+
+// Feedback elements
+const feedbackBtn = document.getElementById('feedback-btn');
+const feedbackOverlay = document.getElementById('feedback-overlay');
+const closeFeedbackModalBtn = document.getElementById('close-feedback-modal');
+const feedbackBubbles = document.getElementById('feedback-bubbles');
+const feedbackSelected = document.getElementById('feedback-selected');
+const feedbackUpBtn = document.getElementById('feedback-up-btn');
+const feedbackDownBtn = document.getElementById('feedback-down-btn');
+const feedbackInput = document.getElementById('feedback-input');
+const feedbackSubmitBtn = document.getElementById('feedback-submit-btn');
+const feedbackDeleteBtn = document.getElementById('feedback-delete-btn');
+const feedbackAdminPanel = document.getElementById('feedback-admin-panel');
+const feedbackAdminInput = document.getElementById('feedback-admin-input');
+const feedbackAdminSave = document.getElementById('feedback-admin-save');
+const feedbackAdminDelete = document.getElementById('feedback-admin-delete');
+
+let currentRoadmap = { items: [] };
+let currentFeedback = { items: [] };
+let selectedFeedbackId = null;
+const feedbackPositions = new Map();
+
 // Tool buttons will be created dynamically or use existing elements
 
 // State
@@ -131,6 +164,8 @@ function init() {
     setupZoomPan();
     setupEditMode();
     setupAdminMode();
+    setupRoadmap();
+    setupFeedback();
     setupThemeToggle();
     // setupDebugControls(); // Disabled for production
 
@@ -265,29 +300,71 @@ const ADMIN_PASSWORD = '6901';
 function setupAdminMode() {
     // Ctrl+Shift+E でパスワード入力モーダルを表示
     document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+        if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
             e.preventDefault();
             if (adminModeEnabled) {
-                // 既に有効な場合は無効化
                 disableAdminMode();
             } else {
-                // パスワード入力モーダルを表示
                 openAdminPasswordModal();
             }
         }
     });
 
-    // パスワード入力モーダルのイベント
-    closeAdminModalBtn.addEventListener('click', closeAdminPasswordModal);
-    cancelAdminBtn.addEventListener('click', closeAdminPasswordModal);
-    adminPasswordOverlay.addEventListener('click', (e) => {
+    // Bind modal events safely (guarding nulls)
+    if (closeAdminModalBtn) closeAdminModalBtn.addEventListener('click', closeAdminPasswordModal);
+    if (cancelAdminBtn) cancelAdminBtn.addEventListener('click', closeAdminPasswordModal);
+    if (adminPasswordOverlay) adminPasswordOverlay.addEventListener('click', (e) => {
         if (e.target === adminPasswordOverlay) closeAdminPasswordModal();
     });
 
-    confirmAdminBtn.addEventListener('click', checkAdminPassword);
-    adminPasswordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') checkAdminPassword();
-    });
+    if (confirmAdminBtn) confirmAdminBtn.addEventListener('click', checkAdminPassword);
+    if (adminPasswordInput) {
+        adminPasswordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkAdminPassword();
+        });
+        // Hide error as user types
+        adminPasswordInput.addEventListener('input', () => {
+            if (adminPasswordError) {
+                adminPasswordError.style.display = 'none';
+                adminPasswordError.classList.remove('input-shake');
+            }
+        });
+    }
+}
+
+function checkAdminPassword() {
+    const password = adminPasswordInput ? adminPasswordInput.value.trim() : '';
+
+    if (password === ADMIN_PASSWORD) {
+        adminModeEnabled = true;
+        if (toggleEditModeBtn) toggleEditModeBtn.style.display = 'inline-block';
+        updateToolbarVisibility();
+        // Visual feedback
+        if (adminPasswordError) {
+            adminPasswordError.style.display = 'block';
+            adminPasswordError.style.color = 'var(--success-color)';
+            adminPasswordError.textContent = '管理者モードが有効になりました';
+        }
+        // Dispatch event so other parts (e.g., roadmap) can react
+        setTimeout(() => {
+            if (adminPasswordError) {
+                adminPasswordError.style.display = 'none';
+                adminPasswordError.style.color = '';
+            }
+            closeAdminPasswordModal();
+            document.dispatchEvent(new Event('adminEnabled'));
+        }, 700);
+    } else {
+        if (adminPasswordError) {
+            adminPasswordError.style.display = 'block';
+            adminPasswordError.textContent = 'パスワードが正しくありません';
+            adminPasswordError.classList.add('input-shake');
+        }
+        if (adminPasswordInput) {
+            adminPasswordInput.value = '';
+            adminPasswordInput.focus();
+        }
+    }
 }
 
 function openAdminPasswordModal() {
@@ -303,31 +380,613 @@ function closeAdminPasswordModal() {
     adminPasswordError.style.display = 'none';
 }
 
-function checkAdminPassword() {
-    const password = adminPasswordInput.value.trim();
-
-    if (password === ADMIN_PASSWORD) {
-        adminModeEnabled = true;
-        toggleEditModeBtn.style.display = 'inline-block';
-        updateToolbarVisibility();
-        closeAdminPasswordModal();
-    } else {
-        adminPasswordError.style.display = 'block';
-        adminPasswordInput.value = '';
-        adminPasswordInput.focus();
-    }
-}
+// NOTE: `checkAdminPassword` is implemented above with enhanced behavior (feedback + event dispatch).
+// The duplicate implementation below was removed to avoid overriding that logic.
 
 function updateToolbarVisibility() {
     const toolbar = document.querySelector('.toolbar');
-    if (toolbar) {
-        // 編集ボタンが表示されている時（管理者モード）または編集モードの時だけツールバーを表示
-        const editBtnVisible = toggleEditModeBtn.style.display !== 'none';
-        if (isEditMode || editBtnVisible) {
-            toolbar.style.display = 'flex';
-        } else {
-            toolbar.style.display = 'none';
+    if (!toolbar) return;
+
+    // determine whether the edit button is visible (guard for missing element)
+    const editBtnVisible = toggleEditModeBtn && toggleEditModeBtn.style.display !== 'none';
+
+    if (isEditMode || editBtnVisible) {
+        // Override CSS that may include !important by setting inline !important
+        toolbar.style.setProperty('display', 'flex', 'important');
+    } else {
+        toolbar.style.setProperty('display', 'none', 'important');
+    }
+}
+
+// ------------------ Roadmap UI & Functions ------------------
+function setupRoadmap() {
+    if (!roadmapBtn) return;
+    roadmapBtn.addEventListener('click', openRoadmapModal);
+    if (closeRoadmapModalBtn) closeRoadmapModalBtn.addEventListener('click', closeRoadmapModal);
+    if (roadmapOverlay) roadmapOverlay.addEventListener('click', (e) => {
+        if (e.target === roadmapOverlay) closeRoadmapModal();
+    });
+
+    if (roadmapEditBtn) roadmapEditBtn.addEventListener('click', () => {
+        if (!adminModeEnabled) return;
+        enableRoadmapEdit();
+    });
+
+    if (roadmapAddBtn) roadmapAddBtn.addEventListener('click', () => {
+        addRoadmapEditorItem({});
+    });
+
+    if (roadmapSaveBtn) roadmapSaveBtn.addEventListener('click', saveRoadmap);
+    if (roadmapCancelBtn) roadmapCancelBtn.addEventListener('click', disableRoadmapEdit);
+
+    document.addEventListener('adminEnabled', updateRoadmapAdminUI);
+    updateRoadmapAdminUI();
+}
+
+async function openRoadmapModal() {
+    if (!roadmapOverlay) return;
+    roadmapOverlay.classList.remove('hidden');
+    const data = await fetchRoadmap();
+    currentRoadmap = data;
+    renderRoadmapView(currentRoadmap);
+    if (adminModeEnabled) {
+        renderRoadmapEditor(currentRoadmap);
+    }
+    updateRoadmapAdminUI();
+}
+
+function closeRoadmapModal() {
+    if (!roadmapOverlay) return;
+    roadmapOverlay.classList.add('hidden');
+    disableRoadmapEdit();
+}
+
+async function fetchRoadmap() {
+    try {
+        const res = await fetch('/api/roadmap');
+        const json = await res.json();
+        return json.data || { items: [] };
+    } catch (e) {
+        console.error('Failed to fetch roadmap', e);
+        return { items: [] };
+    }
+}
+
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[&<>"]+/g, (s) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[s] || s));
+}
+
+function renderRoadmapView(data) {
+    if (!roadmapView) return;
+    const items = data.items || [];
+    if (items.length === 0) {
+        const message = adminModeEnabled
+            ? 'アイテムがありません。「編集」から追加できます。'
+            : 'アイテムがありません。';
+        roadmapView.innerHTML = `<div style="color:var(--text-secondary);">${message}</div>`;
+        return;
+    }
+    roadmapView.innerHTML = items.map(item => `\n        <div class="roadmap-item">\n            <div class="roadmap-title">${escapeHtml(item.title || '')}</div>\n            <div class="roadmap-desc">${escapeHtml(item.desc || '')}</div>\n        </div>`).join('');
+}
+
+function renderRoadmapEditor(data) {
+    if (!roadmapItems) return;
+    roadmapItems.innerHTML = '';
+    const items = (data.items || []).length ? data.items : [{}];
+    items.forEach(item => addRoadmapEditorItem(item));
+}
+
+function addRoadmapEditorItem(item) {
+    if (!roadmapItems) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'roadmap-edit-item';
+
+    const titleInput = document.createElement('input');
+    titleInput.className = 'roadmap-input';
+    titleInput.type = 'text';
+    titleInput.placeholder = 'タイトル';
+    titleInput.value = item.title || '';
+
+    const descInput = document.createElement('textarea');
+    descInput.className = 'roadmap-textarea';
+    descInput.placeholder = '説明';
+    descInput.value = item.desc || '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'secondary-btn roadmap-remove-btn';
+    removeBtn.type = 'button';
+    removeBtn.textContent = '削除';
+    removeBtn.addEventListener('click', () => {
+        wrapper.remove();
+    });
+
+    wrapper.appendChild(titleInput);
+    wrapper.appendChild(descInput);
+    wrapper.appendChild(removeBtn);
+    roadmapItems.appendChild(wrapper);
+}
+
+function collectRoadmapFromEditor() {
+    if (!roadmapItems) return { items: [] };
+    const items = [];
+    roadmapItems.querySelectorAll('.roadmap-edit-item').forEach((row) => {
+        const title = row.querySelector('.roadmap-input')?.value.trim() || '';
+        const desc = row.querySelector('.roadmap-textarea')?.value.trim() || '';
+        if (title || desc) {
+            items.push({ title, desc });
         }
+    });
+    return { items };
+}
+
+function enableRoadmapEdit() {
+    if (!roadmapView || !roadmapEditor) return;
+    if (!adminModeEnabled) return;
+    roadmapView.classList.add('hidden');
+    roadmapEditor.classList.remove('hidden');
+    roadmapSaveBtn.classList.remove('hidden');
+    roadmapCancelBtn.classList.remove('hidden');
+    renderRoadmapEditor(currentRoadmap);
+}
+
+function disableRoadmapEdit() {
+    if (!roadmapView || !roadmapEditor) return;
+    roadmapView.classList.remove('hidden');
+    roadmapEditor.classList.add('hidden');
+    roadmapSaveBtn.classList.add('hidden');
+    roadmapCancelBtn.classList.add('hidden');
+}
+
+function updateRoadmapAdminUI() {
+    if (!roadmapEditBtn) return;
+    if (adminModeEnabled) {
+        roadmapEditBtn.classList.remove('hidden');
+    } else {
+        roadmapEditBtn.classList.add('hidden');
+        disableRoadmapEdit();
+    }
+}
+
+async function saveRoadmap() {
+    try {
+        const payload = collectRoadmapFromEditor();
+        const res = await fetch('/api/roadmap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roadmap: payload })
+        });
+        if (!res.ok) throw new Error('保存に失敗しました');
+        const fresh = await fetchRoadmap();
+        currentRoadmap = fresh;
+        renderRoadmapView(fresh);
+        disableRoadmapEdit();
+        alert('保存しました');
+    } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+    }
+}
+
+// ------------------ Feedback UI & Functions ------------------
+function setupFeedback() {
+    if (!feedbackBtn) return;
+    feedbackBtn.addEventListener('click', openFeedbackModal);
+    if (closeFeedbackModalBtn) closeFeedbackModalBtn.addEventListener('click', closeFeedbackModal);
+    if (feedbackOverlay) feedbackOverlay.addEventListener('click', (e) => {
+        if (e.target === feedbackOverlay) closeFeedbackModal();
+    });
+
+    if (feedbackSubmitBtn) feedbackSubmitBtn.addEventListener('click', submitFeedback);
+    if (feedbackInput) {
+        feedbackInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitFeedback();
+        });
+    }
+
+    if (feedbackUpBtn) feedbackUpBtn.addEventListener('click', () => voteFeedback(1));
+    if (feedbackDownBtn) feedbackDownBtn.addEventListener('click', () => voteFeedback(-1));
+    if (feedbackDeleteBtn) feedbackDeleteBtn.addEventListener('click', deleteFeedback);
+    if (feedbackAdminSave) feedbackAdminSave.addEventListener('click', saveAdminComment);
+    if (feedbackAdminDelete) feedbackAdminDelete.addEventListener('click', deleteFeedback);
+
+    document.addEventListener('adminEnabled', updateFeedbackAdminUI);
+    updateFeedbackAdminUI();
+}
+
+async function openFeedbackModal() {
+    if (!feedbackOverlay) return;
+    feedbackOverlay.classList.remove('hidden');
+    await refreshFeedback();
+    updateFeedbackAdminUI();
+}
+
+function closeFeedbackModal() {
+    if (!feedbackOverlay) return;
+    feedbackOverlay.classList.add('hidden');
+    clearFeedbackSelection();
+}
+
+async function refreshFeedback() {
+    const data = await fetchFeedback();
+    currentFeedback = data;
+    renderFeedbackBubbles(currentFeedback);
+}
+
+async function fetchFeedback() {
+    try {
+        const res = await fetch('/api/feedback');
+        const json = await res.json();
+        return json.data || { items: [] };
+    } catch (e) {
+        console.error('Failed to fetch feedback', e);
+        return { items: [] };
+    }
+}
+
+function renderFeedbackBubbles(data) {
+    if (!feedbackBubbles) return;
+    const items = data.items || [];
+    if (items.length === 0) {
+        feedbackBubbles.innerHTML = '<div style="color:var(--text-secondary); padding:12px;">まだ投稿がありません。</div>';
+        feedbackPositions.clear();
+        return;
+    }
+
+    const existing = new Map();
+    feedbackBubbles.querySelectorAll('.feedback-bubble-wrap').forEach((el) => {
+        existing.set(el.dataset.id, el);
+    });
+
+    if (existing.size === 0) {
+        feedbackBubbles.innerHTML = '';
+    }
+
+    const rect = feedbackBubbles.getBoundingClientRect();
+    const width = rect.width || 400;
+    const height = rect.height || 300;
+    const placed = [];
+
+    items.forEach((item, index) => {
+        const size = feedbackBubbleSize(item.score || 0);
+        const pos = placeFeedbackPosition(item.id, width, height, size, index, placed);
+        placed.push({ x: pos.x, y: pos.y, size });
+        let wrap = existing.get(item.id);
+        let bubble = null;
+        const isNew = !wrap;
+
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.className = 'feedback-bubble-wrap';
+            wrap.dataset.id = item.id;
+        } else {
+            bubble = wrap.querySelector('.feedback-bubble');
+        }
+
+        wrap.style.width = `${size}px`;
+        wrap.style.height = `${size}px`;
+        wrap.style.left = `${pos.x}px`;
+        wrap.style.top = `${pos.y}px`;
+
+        if (!bubble) {
+            bubble = document.createElement('div');
+            bubble.className = 'feedback-bubble';
+            bubble.dataset.id = item.id;
+            bubble.addEventListener('click', () => selectFeedback(item.id));
+            wrap.appendChild(bubble);
+        }
+
+        bubble.style.width = `${size}px`;
+        bubble.style.height = `${size}px`;
+
+        if (!wrap.dataset.floatX) {
+            wrap.dataset.floatX = randomFloat(-22, 22).toFixed(2);
+            wrap.dataset.floatY = randomFloat(-18, 18).toFixed(2);
+            wrap.dataset.floatDuration = randomFloat(5.5, 10).toFixed(2);
+            wrap.dataset.delay = ((index % 6) * 0.4).toFixed(2);
+        }
+
+        bubble.style.setProperty('--float-x', `${wrap.dataset.floatX}px`);
+        bubble.style.setProperty('--float-y', `${wrap.dataset.floatY}px`);
+        bubble.style.setProperty('--float-duration', `${wrap.dataset.floatDuration}s`);
+        if (isNew) {
+            bubble.style.animationDelay = `${wrap.dataset.delay}s`;
+        }
+
+        let text = bubble.querySelector('.feedback-bubble-text');
+        if (!text) {
+            text = document.createElement('div');
+            text.className = 'feedback-bubble-text';
+            bubble.appendChild(text);
+        }
+        text.style.fontSize = `${getBubbleFontSize(item.text || '')}px`;
+        text.textContent = formatFeedbackBubbleText(item.text || '');
+
+        let admin = bubble.querySelector('.feedback-admin-comment');
+        if (item.adminComment) {
+            if (!admin) {
+                admin = document.createElement('div');
+                admin.className = 'feedback-admin-comment';
+                bubble.appendChild(admin);
+            }
+            admin.textContent = item.adminComment;
+        } else if (admin) {
+            admin.remove();
+        }
+
+        bubble.classList.toggle('own', isOwnFeedback(item.id));
+
+        if (isNew) {
+            feedbackBubbles.appendChild(wrap);
+        }
+    });
+
+    existing.forEach((wrap, id) => {
+        if (!items.some((item) => item.id === id)) {
+            wrap.remove();
+            feedbackPositions.delete(id);
+        }
+    });
+}
+
+function feedbackBubbleSize(score) {
+    const base = 110;
+    const size = base + score * 6;
+    return Math.max(90, Math.min(180, size));
+}
+
+function formatFeedbackBubbleText(text) {
+    const clean = text.trim();
+    if (clean.length <= 32) return clean;
+    return `${clean.slice(0, 30)}…`;
+}
+
+function getBubbleFontSize(text) {
+    const len = text.trim().length;
+    if (len >= 34) return 10;
+    if (len >= 28) return 11;
+    if (len >= 22) return 12;
+    if (len >= 18) return 13;
+    if (len >= 14) return 14;
+    return 15;
+}
+
+function randomFloat(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function placeFeedbackPosition(id, width, height, size, index, placed) {
+    if (feedbackPositions.has(id)) return feedbackPositions.get(id);
+    const padding = 12;
+    const maxX = Math.max(padding, width - size - padding);
+    const maxY = Math.max(padding, height - size - padding);
+    let chosen = null;
+
+    for (let i = 0; i < 40; i++) {
+        const x = Math.random() * (maxX - padding) + padding;
+        const y = Math.random() * (maxY - padding) + padding;
+        if (isNonOverlapping(x, y, size, placed)) {
+            chosen = { x, y, idx: index };
+            break;
+        }
+        if (!chosen) {
+            chosen = { x, y, idx: index };
+        }
+    }
+
+    const pos = chosen || { x: padding, y: padding, idx: index };
+    feedbackPositions.set(id, pos);
+    return pos;
+}
+
+function isNonOverlapping(x, y, size, placed) {
+    const cx = x + size / 2;
+    const cy = y + size / 2;
+    const minGap = 10;
+    return placed.every((item) => {
+        const otherCx = item.x + item.size / 2;
+        const otherCy = item.y + item.size / 2;
+        const dist = Math.hypot(cx - otherCx, cy - otherCy);
+        const minDist = (size + item.size) / 2 + minGap;
+        return dist >= minDist;
+    });
+}
+
+function selectFeedback(id) {
+    if (!currentFeedback || !currentFeedback.items) return;
+    selectedFeedbackId = id;
+    const item = currentFeedback.items.find((row) => row.id === id);
+    if (!item) return;
+    document.querySelectorAll('.feedback-bubble').forEach((el) => {
+        el.classList.toggle('selected', el.dataset.id === id);
+    });
+    updateFeedbackSelectionUI(item);
+}
+
+function clearFeedbackSelection() {
+    selectedFeedbackId = null;
+    if (feedbackSelected) {
+        feedbackSelected.innerHTML = '<div class="feedback-selected-text">泡をクリックして評価できます。</div>';
+    }
+    if (feedbackUpBtn) feedbackUpBtn.disabled = true;
+    if (feedbackDownBtn) feedbackDownBtn.disabled = true;
+    if (feedbackUpBtn) feedbackUpBtn.classList.remove('active');
+    if (feedbackDownBtn) feedbackDownBtn.classList.remove('active');
+    if (feedbackDeleteBtn) feedbackDeleteBtn.classList.add('hidden');
+}
+
+function updateFeedbackSelectionUI(item) {
+    if (!feedbackSelected) return;
+    const score = item.score || 0;
+    const scoreLine = adminModeEnabled
+        ? `<div style="margin-top:6px; color:var(--text-secondary); font-size:0.85rem;">評価: ${score}</div>`
+        : '';
+    feedbackSelected.innerHTML = `
+        <div class="feedback-selected-text">${escapeHtml(item.text || '')}</div>
+        ${scoreLine}
+    `;
+    const currentVote = getStoredVote(item.id);
+    if (feedbackUpBtn) feedbackUpBtn.disabled = false;
+    if (feedbackDownBtn) feedbackDownBtn.disabled = false;
+    if (feedbackUpBtn) feedbackUpBtn.classList.toggle('active', currentVote === 1);
+    if (feedbackDownBtn) feedbackDownBtn.classList.toggle('active', currentVote === -1);
+    if (feedbackDeleteBtn) {
+        if (canDeleteFeedback(item.id)) {
+            feedbackDeleteBtn.classList.remove('hidden');
+        } else {
+            feedbackDeleteBtn.classList.add('hidden');
+        }
+    }
+    if (feedbackAdminInput) feedbackAdminInput.value = item.adminComment || '';
+}
+
+function getVoteStore() {
+    try {
+        return JSON.parse(localStorage.getItem('feedbackVotes') || '{}');
+    } catch {
+        return {};
+    }
+}
+
+function getOwnFeedbackIds() {
+    try {
+        return JSON.parse(localStorage.getItem('feedbackOwn') || '[]');
+    } catch {
+        return [];
+    }
+}
+
+function isOwnFeedback(id) {
+    return getOwnFeedbackIds().includes(id);
+}
+
+function addOwnFeedbackId(id) {
+    const list = new Set(getOwnFeedbackIds());
+    list.add(id);
+    localStorage.setItem('feedbackOwn', JSON.stringify([...list]));
+}
+
+function removeOwnFeedbackId(id) {
+    const list = getOwnFeedbackIds().filter((item) => item !== id);
+    localStorage.setItem('feedbackOwn', JSON.stringify(list));
+}
+
+function canDeleteFeedback(id) {
+    return adminModeEnabled || isOwnFeedback(id);
+}
+
+function getStoredVote(id) {
+    const store = getVoteStore();
+    return Number(store[id] || 0);
+}
+
+function setStoredVote(id, value) {
+    const store = getVoteStore();
+    if (value === 0) {
+        delete store[id];
+    } else {
+        store[id] = value;
+    }
+    localStorage.setItem('feedbackVotes', JSON.stringify(store));
+}
+
+async function voteFeedback(delta) {
+    if (!selectedFeedbackId) return;
+    const current = getStoredVote(selectedFeedbackId);
+    let nextVote = current;
+    if (delta === 1) {
+        nextVote = current === 1 ? 0 : 1;
+    } else if (delta === -1) {
+        nextVote = current === -1 ? 0 : -1;
+    }
+    const appliedDelta = nextVote - current;
+    if (appliedDelta === 0) return;
+    try {
+        const res = await fetch('/api/feedback/vote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: selectedFeedbackId, delta: appliedDelta })
+        });
+        if (!res.ok) throw new Error('投票に失敗しました');
+        setStoredVote(selectedFeedbackId, nextVote);
+        await refreshFeedback();
+        const refreshed = currentFeedback.items.find((row) => row.id === selectedFeedbackId);
+        if (refreshed) {
+            selectFeedback(refreshed.id);
+        } else {
+            clearFeedbackSelection();
+        }
+    } catch (e) {
+        alert('投票に失敗しました: ' + e.message);
+    }
+}
+
+async function submitFeedback() {
+    if (!feedbackInput) return;
+    const text = feedbackInput.value.trim();
+    if (!text) return;
+    try {
+        const res = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        if (!res.ok) throw new Error('投稿に失敗しました');
+        const json = await res.json();
+        if (json && json.item && json.item.id) {
+            addOwnFeedbackId(json.item.id);
+            feedbackPositions.delete(json.item.id);
+            selectedFeedbackId = json.item.id;
+        }
+        feedbackInput.value = '';
+        await refreshFeedback();
+        if (selectedFeedbackId) {
+            const refreshed = currentFeedback.items.find((row) => row.id === selectedFeedbackId);
+            if (refreshed) selectFeedback(refreshed.id);
+        }
+    } catch (e) {
+        alert('投稿に失敗しました: ' + e.message);
+    }
+}
+
+async function saveAdminComment() {
+    if (!selectedFeedbackId || !feedbackAdminInput) return;
+    const comment = feedbackAdminInput.value.trim();
+    try {
+        const res = await fetch('/api/feedback/admin-comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: selectedFeedbackId, comment })
+        });
+        if (!res.ok) throw new Error('保存に失敗しました');
+        await refreshFeedback();
+        selectFeedback(selectedFeedbackId);
+    } catch (e) {
+        alert('保存に失敗しました: ' + e.message);
+    }
+}
+
+async function deleteFeedback() {
+    if (!selectedFeedbackId) return;
+    if (!canDeleteFeedback(selectedFeedbackId)) return;
+    if (!confirm('この泡を削除しますか？')) return;
+    try {
+        const res = await fetch(`/api/feedback/${selectedFeedbackId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('削除に失敗しました');
+        removeOwnFeedbackId(selectedFeedbackId);
+        feedbackPositions.delete(selectedFeedbackId);
+        await refreshFeedback();
+        clearFeedbackSelection();
+    } catch (e) {
+        alert('削除に失敗しました: ' + e.message);
+    }
+}
+
+function updateFeedbackAdminUI() {
+    if (!feedbackAdminPanel) return;
+    if (adminModeEnabled) {
+        feedbackAdminPanel.classList.remove('hidden');
+    } else {
+        feedbackAdminPanel.classList.add('hidden');
     }
 }
 
@@ -335,6 +994,8 @@ function disableAdminMode() {
     adminModeEnabled = false;
     toggleEditModeBtn.style.display = 'none';
     updateToolbarVisibility();
+    updateRoadmapAdminUI();
+    updateFeedbackAdminUI();
 
     // 編集モードが有効な場合は終了
     if (isEditMode) {
