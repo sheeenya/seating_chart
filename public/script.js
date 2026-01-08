@@ -643,7 +643,7 @@ function handleSelectionBoxEnd(e) {
 
 function setupSeatEvents(seatEl) {
     seatEl.addEventListener('mousedown', (e) => {
-        if (!isEditMode) return;
+        if (!isEditMode || e.button !== 0) return;
         e.stopPropagation();
 
         const id = seatEl.dataset.id;
@@ -686,6 +686,7 @@ function setupSeatEvents(seatEl) {
     // Add drag functionality for occupied seats in normal mode
     if (!isEditMode) {
         seatEl.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
             const occupant = occupancyData[seatEl.dataset.id];
             if (occupant && occupant.name) {
                 // Start dragging occupied seat
@@ -1294,15 +1295,21 @@ function setupZoomPan() {
 
     let interactionTimeout = null;
 
-    function scheduleUpdate() {
-        // 表示のぼやけ防止：操作開始時にクラスを付与
-        container.classList.add('is-interacting');
+    function scheduleUpdate(immediate = false) {
+        // 状態が変化したときのみクラスを操作
+        if (!container.classList.contains('is-interacting')) {
+            container.classList.add('is-interacting');
+        }
 
-        // デバウンス処理：操作停止から250ms後にクラスを除去（再ラスタライズを促す）
         if (interactionTimeout) clearTimeout(interactionTimeout);
         interactionTimeout = setTimeout(() => {
             container.classList.remove('is-interacting');
         }, 250);
+
+        if (immediate) {
+            updateTransform();
+            return;
+        }
 
         if (!isTransformPending) {
             isTransformPending = true;
@@ -1334,7 +1341,7 @@ function setupZoomPan() {
             pannedY = mouseY - (localY * newScale);
 
             scale = newScale;
-            scheduleUpdate();
+            scheduleUpdate(true); // 最初の変化は即時反映
             return;
         }
 
@@ -1361,11 +1368,16 @@ function setupZoomPan() {
         pannedY = mouseY - (localY * newScale);
 
         scale = newScale;
-        scheduleUpdate();
+        scheduleUpdate(true); // 最初の変化は即時反映
     }, { passive: false });
 
     // Middle mouse button pan
     container.addEventListener('mousedown', (e) => {
+        // 操作開始のヒントを事前に与える
+        if (!container.classList.contains('is-interacting')) {
+            container.classList.add('is-interacting');
+        }
+
         if (e.button === 1) {
             e.preventDefault();
             isPanningWithWheel = true;
@@ -1390,7 +1402,7 @@ function setupZoomPan() {
             e.preventDefault();
             pannedX = e.clientX - panStartX;
             pannedY = e.clientY - panStartY;
-            scheduleUpdate();
+            scheduleUpdate(true); // ドラッグ開始時の反応を速くする
             return;
         }
 
@@ -1398,7 +1410,7 @@ function setupZoomPan() {
             e.preventDefault();
             pannedX = e.clientX - mapStartX;
             pannedY = e.clientY - mapStartY;
-            scheduleUpdate();
+            scheduleUpdate(true); // ドラッグ開始時の反応を速くする
         }
     });
 

@@ -346,7 +346,6 @@ main {
     display: block;
     pointer-events: none;
     max-width: none;
-    filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
 }
 
 /* オフィス画像部分は常に明るい背景 */
