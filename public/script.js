@@ -1220,7 +1220,7 @@ function renderSeats() {
         const occupantJson = JSON.stringify(occupant);
         const lastOccupantJson = JSON.stringify(lastOccupant);
 
-        if (themeChanged || (occupancyChanged && occupantJson !== lastOccupantJson)) {
+        if (layoutChanged || themeChanged || (occupancyChanged && occupantJson !== lastOccupantJson)) {
             const occupantEl = seatEl.querySelector('.seat-occupant');
             if (occupant && occupant.name) {
                 seatEl.classList.add('occupied');
@@ -1434,29 +1434,6 @@ function setupZoomPan() {
         requestAnimationFrame(animate);
     }
 
-    // Search Logic (Compact)
-    function handleSearchInput() {
-        const query = searchInput.value.trim().toLowerCase();
-        searchResults.innerHTML = '';
-        if (!query) { searchResults.classList.add('hidden'); return; }
-        const matches = Object.entries(occupancyData).filter(([_, d]) => d?.name?.toLowerCase().includes(query));
-        if (matches.length) {
-            matches.forEach(([id, d]) => {
-                const div = document.createElement('div');
-                div.className = 'search-result-item';
-                div.textContent = `${d.name} (${getSeatDisplayLabel(id)})`;
-                div.onclick = () => { panToSeat(id); highlightSeat(id); searchResults.classList.add('hidden'); };
-                searchResults.appendChild(div);
-            });
-            searchResults.classList.remove('hidden');
-        } else { searchResults.classList.add('hidden'); }
-    }
-
-    function handleSearch() {
-        const query = searchInput.value.trim().toLowerCase();
-        const match = Object.entries(occupancyData).find(([_, d]) => d?.name?.toLowerCase().includes(query));
-        if (match) { panToSeat(match[0]); highlightSeat(match[0]); }
-    }
 }
 
 // DOM Elements Cache for Performance
@@ -1594,7 +1571,9 @@ function normalizeKanji(str) {
         .replace(/廣/g, "広")
         .replace(/惠/g, "恵")
         .replace(/[濱濵]/g, "浜")
-        .replace(/澤/g, "沢")
+        .replace(/[澤沢]/g, "沢")
+        .replace(/[瀨瀬]/g, "瀬")
+        .replace(/[嶋嶌]/g, "島")
         .replace(/[ヶヶ箇个]/g, "ケ");
 }
 
