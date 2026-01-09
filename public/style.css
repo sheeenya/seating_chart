@@ -780,6 +780,15 @@ body.light-theme .feedback-admin-comment {
     color: #92400e;
 }
 
+/* Improve contrast for dark theme: make admin comment readable on dark backgrounds */
+body.dark-theme .feedback-admin-comment {
+    background: linear-gradient(135deg, rgba(245,158,11,0.24) 0%, rgba(245,158,11,0.16) 100%);
+    color: #ffffff;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
 @keyframes floatBubble {
     0% { transform: translate(0, 0); }
     25% { transform: translate(var(--float-x, 10px), var(--float-y, -8px)); }
