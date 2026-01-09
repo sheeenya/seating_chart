@@ -166,6 +166,9 @@ function init() {
     setupAdminMode();
     setupRoadmap();
     setupFeedback();
+
+
+
     setupThemeToggle();
     // setupDebugControls(); // Disabled for production
 
@@ -179,8 +182,12 @@ function init() {
 
     document.getElementById('toggle-color-btn').addEventListener('click', toggleColorPicker);
 
+    // Prevent Enter from submitting when confirm button is disabled
     userNameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleSeatSubmit();
+        if (e.key === 'Enter') {
+            if (confirmSeatBtn && confirmSeatBtn.disabled) return;
+            handleSeatSubmit();
+        }
     });
 
     // Wait for background image to load, then fit to view
@@ -589,9 +596,17 @@ function setupFeedback() {
     if (feedbackAdminSave) feedbackAdminSave.addEventListener('click', saveAdminComment);
     if (feedbackAdminDelete) feedbackAdminDelete.addEventListener('click', deleteFeedback);
 
+    // Keep admin comment widths in sync with the admin input
+    window.addEventListener('resize', updateAdminCommentWidths);
+    if (feedbackAdminInput) {
+        feedbackAdminInput.addEventListener('input', updateAdminCommentWidths);
+        feedbackAdminInput.addEventListener('focus', updateAdminCommentWidths);
+    }
+
     document.addEventListener('adminEnabled', updateFeedbackAdminUI);
+    document.addEventListener('adminEnabled', refreshModalAdminState);
     updateFeedbackAdminUI();
-}
+}    
 
 async function openFeedbackModal() {
     if (!feedbackOverlay) return;
@@ -709,6 +724,38 @@ function renderFeedbackBubbles(data) {
                 bubble.appendChild(admin);
             }
             admin.textContent = item.adminComment;
+
+            // Size admin comment: try to fit content on one line for short texts,
+            // but cap max width to ~10 full-width characters and allow wrapping for longer texts.
+            try {
+                const adminInputEl = document.getElementById('feedback-admin-input');
+                const inputWidth = adminInputEl ? adminInputEl.getBoundingClientRect().width : 0;
+                const fontSize = parseFloat(getComputedStyle(admin).fontSize) || 16;
+                const fullWidthPx = Math.round(fontSize * 1.4); // approximate full-width char
+                const maxPx = fullWidthPx * 10 + 12; // cap for ~10 full-width chars
+                const maxAllowed = inputWidth > 40 ? Math.min(inputWidth, maxPx) : maxPx;
+
+                // First, try to keep single-line (no wrap) and measure the required width
+                admin.style.whiteSpace = 'nowrap';
+                admin.style.width = 'auto';
+                admin.style.maxWidth = `${maxAllowed}px`;
+                const needed = admin.scrollWidth;
+
+                if (needed <= maxAllowed) {
+                    // Short text fits on one line — use exact width so no extra padding
+                    admin.style.width = `${needed}px`;
+                    admin.style.whiteSpace = 'nowrap';
+                } else {
+                    // Too long — allow wrapping and cap width: set fixed capped width so it doesn't collapse
+                    admin.style.whiteSpace = 'normal';
+                    admin.style.width = `${maxAllowed}px`;
+                    admin.style.maxWidth = `${maxAllowed}px`;
+                }
+            } catch (e) {
+                admin.style.width = 'auto';
+                admin.style.maxWidth = '';
+                admin.style.whiteSpace = 'normal';
+            }
         } else if (admin) {
             admin.remove();
         }
@@ -726,6 +773,64 @@ function renderFeedbackBubbles(data) {
             feedbackPositions.delete(id);
         }
     });
+
+    // Ensure admin comment widths match the admin input after rendering
+    updateAdminCommentWidths();
+}
+
+// Update widths of admin comment badges to match the admin input textarea
+function updateAdminCommentWidths() {
+    try {
+        const input = document.getElementById('feedback-admin-input');
+        const inputWidth = input ? input.getBoundingClientRect().width : 0;
+        const fontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const fullWidthPx = Math.round(fontSize * 1.4);
+        const maxPx = fullWidthPx * 10 + 12; // cap at ~10 full-width chars
+        const maxAllowed = inputWidth > 40 ? Math.min(inputWidth, maxPx) : maxPx;
+        document.querySelectorAll('.feedback-admin-comment').forEach(el => {
+            // Recompute per-element: keep single-line if it fits, otherwise allow wrapping
+            el.style.whiteSpace = 'nowrap';
+            el.style.width = 'auto';
+            el.style.maxWidth = `${maxAllowed}px`;
+            const need = el.scrollWidth;
+            if (need <= maxAllowed) {
+                el.style.width = `${need}px`;
+                el.style.whiteSpace = 'nowrap';
+            } else {
+                el.style.whiteSpace = 'normal';
+                // When wrapping, use the capped width so lines have consistent width and don't collapse
+                el.style.width = `${maxAllowed}px`;
+                el.style.maxWidth = `${maxAllowed}px`;
+            }
+        });
+    } catch (e) {
+        // ignore
+    }
+}
+
+// Refresh modal state when admin status changes while modal is open
+function refreshModalAdminState() {
+    const seatId = selectedSeatIdInput ? selectedSeatIdInput.value : null;
+    if (!seatId) return;
+    const seatDef = (layoutData && Array.isArray(layoutData.seats)) ? layoutData.seats.find(s => s.id === seatId) : null;
+    const isMemoSeat = seatDef && seatDef.label === 'メモ';
+    const adminNoteEl = document.getElementById('modal-admin-note');
+
+    if (isMemoSeat && !adminModeEnabled) {
+        userNameInput.disabled = true;
+        confirmSeatBtn.disabled = true;
+        const toggleBtn2 = document.getElementById('toggle-color-btn');
+        if (toggleBtn2) toggleBtn2.disabled = true;
+        if (adminNoteEl) {
+            adminNoteEl.style.display = 'block';
+        }
+    } else {
+        userNameInput.disabled = false;
+        confirmSeatBtn.disabled = false;
+        const toggleBtn2 = document.getElementById('toggle-color-btn');
+        if (toggleBtn2) toggleBtn2.disabled = false;
+        if (adminNoteEl) adminNoteEl.style.display = 'none';
+    }
 }
 
 function feedbackBubbleSize(score) {
@@ -2555,12 +2660,27 @@ async function handleSeatSubmit() {
     const name = userNameInput.value.trim();
     const id = selectedSeatIdInput.value;
 
+    // Prevent submission for memo seats if not admin (extra guard for keyboard / direct calls)
+    try {
+        const seatDef = (layoutData && Array.isArray(layoutData.seats))
+            ? layoutData.seats.find((s) => s.id === id)
+            : null;
+        if (seatDef && seatDef.label === 'メモ' && !adminModeEnabled) {
+            alert('この座席は管理者のみ着席できます');
+            return;
+        }
+    } catch (e) {
+        // ignore
+    }
+
     if (!name) return;
 
     try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminModeEnabled) headers['X-Admin'] = '1';
         const response = await fetch(API_OCCUPANCY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ seatId: id, name, colorIndex: selectedColorIndex })
         });
 
@@ -2571,6 +2691,8 @@ async function handleSeatSubmit() {
 
             closeModal();
             fetchOccupancy();
+        } else if (response.status === 403) {
+            alert('この座席は管理者のみ着席できます（サーバーで拒否されました）');
         } else {
             alert('Failed to update seat');
         }
@@ -2610,21 +2732,50 @@ function openModal(seat) {
     const occupant = occupancyData[seat.id];
     selectedColorIndex = (occupant && occupant.colorIndex !== undefined) ? occupant.colorIndex : 0;
 
-    if (occupant && occupant.name) {
-        userNameInput.value = occupant.name;
-        confirmSeatBtn.textContent = '更新する';
-        leaveSeatBtn.classList.remove('hidden');
-    } else {
-        // New occupation: load last used name and color index from localStorage
-        userNameInput.value = localStorage.getItem('lastUserName') || '';
-        const savedColorIndex = localStorage.getItem('lastColorIndex');
-        if (savedColorIndex !== null) {
-            selectedColorIndex = parseInt(savedColorIndex);
-        } else {
-            selectedColorIndex = 0;
-        }
-        confirmSeatBtn.textContent = '着席する';
+    // Look up seat definition to determine label (we may have been passed only {id,name})
+    const seatDef = (layoutData && Array.isArray(layoutData.seats)) ? layoutData.seats.find(s => s.id === seat.id) : null;
+    const isMemoSeat = seatDef && seatDef.label === 'メモ';
+    const adminNoteEl = document.getElementById('modal-admin-note');
+
+    if (isMemoSeat && !adminModeEnabled) {
+        // Non-admin cannot occupy memo seats
+        userNameInput.value = '';
+        userNameInput.placeholder = '管理者のみ着席可能';
+        userNameInput.disabled = true;
+        confirmSeatBtn.disabled = true;
         leaveSeatBtn.classList.add('hidden');
+        const toggleBtn2 = document.getElementById('toggle-color-btn');
+        if (toggleBtn2) toggleBtn2.disabled = true;
+        // Also disable color picker container interactions
+        const colorContainer = document.getElementById('color-picker-container');
+        if (colorContainer) colorContainer.classList.remove('visible');
+        if (adminNoteEl) {
+            adminNoteEl.textContent = 'この座席は管理者のみ着席できます';
+            adminNoteEl.style.display = 'block';
+        }
+    } else {
+        if (occupant && occupant.name) {
+            userNameInput.value = occupant.name;
+            confirmSeatBtn.textContent = '更新する';
+            leaveSeatBtn.classList.remove('hidden');
+        } else {
+            // New occupation: load last used name and color index from localStorage
+            userNameInput.value = localStorage.getItem('lastUserName') || '';
+            const savedColorIndex = localStorage.getItem('lastColorIndex');
+            if (savedColorIndex !== null) {
+                selectedColorIndex = parseInt(savedColorIndex);
+            } else {
+                selectedColorIndex = 0;
+            }
+            confirmSeatBtn.textContent = '着席する';
+            leaveSeatBtn.classList.add('hidden');
+        }
+        // Reset admin note / enable color toggle
+        if (adminNoteEl) adminNoteEl.style.display = 'none';
+        const toggleBtn2 = document.getElementById('toggle-color-btn');
+        if (toggleBtn2) toggleBtn2.disabled = false;
+        confirmSeatBtn.disabled = false;
+        userNameInput.disabled = false;
     }
 
     // Generate color picker UI
@@ -2671,8 +2822,9 @@ function renderColorPicker() {
         option.className = 'color-option';
         if (index === selectedColorIndex) option.classList.add('selected');
 
-        // Calculate position in circle
-        const angle = (index / numColors) * 2 * Math.PI - (Math.PI / 2); // Start from top
+        // Calculate position in circle; rotate so color #8 (index 7) is at top
+        const TARGET_INDEX_AT_TOP = 7; // 0-based (color8)
+        const angle = ((index - TARGET_INDEX_AT_TOP) / numColors) * 2 * Math.PI - (Math.PI / 2);
         const x = centerX + radius * Math.cos(angle) - 14; // Subtract half width
         const y = centerY + radius * Math.sin(angle) - 14;
 

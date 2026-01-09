@@ -94,6 +94,18 @@ app.post('/api/occupancy', (req, res) => {
         return res.status(400).json({ error: 'seatId and name required' });
     }
 
+    // Disallow non-admin updates to seats whose label is exactly 'メモ'
+    const seatDef = (layoutData && Array.isArray(layoutData.seats))
+        ? layoutData.seats.find((s) => s.id === seatId)
+        : null;
+
+    if (seatDef && seatDef.label === 'メモ') {
+        const isAdmin = req.headers['x-admin'] === '1';
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'This seat is admin-only' });
+        }
+    }
+
     occupancyData[seatId] = {
         name: name,
         colorIndex: colorIndex !== undefined ? colorIndex : 0,
@@ -233,11 +245,31 @@ app.delete('/api/feedback/:id', (req, res) => {
 
 // 毎日朝4時に座席情報をリセット
 cron.schedule('0 4 * * *', () => {
-    console.log('Daily reset: Clearing all occupancy data at 4:00 AM');
-    occupancyData = {};
+    console.log('Daily reset: Clearing occupancy data at 4:00 AM (preserving seats labeled "メモ" only)');
+
+    // Build a set of seat IDs that should be preserved (label === 'メモ' exactly)
+    const memoSeatIds = new Set();
+    if (layoutData && Array.isArray(layoutData.seats)) {
+        layoutData.seats.forEach((s) => {
+            if (s && s.label && s.label === 'メモ') {
+                memoSeatIds.add(s.id);
+            }
+        });
+    }
+
+    const removed = [];
+    Object.keys(occupancyData).forEach((seatId) => {
+        if (memoSeatIds.has(seatId)) {
+            // preserve
+            return;
+        }
+        removed.push(seatId);
+        delete occupancyData[seatId];
+    });
+
     occupancyVersion = Date.now();
     saveJSON(OCCUPANCY_FILE, occupancyData);
-    console.log('All occupancy data has been cleared');
+    console.log(`Daily reset completed. Removed ${removed.length} entries, preserved ${memoSeatIds.size} memo seats.`);
 }, {
     timezone: "Asia/Tokyo"
 });

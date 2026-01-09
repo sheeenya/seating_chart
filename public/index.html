@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Office Seating Chart</title>
+    <title>座席表-東京</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -140,6 +141,7 @@
                 <div class="modal-body">
                     <p class="modal-label">着席する方のお名前を入力してください</p>
                     <input type="text" id="user-name-input" autofocus>
+                    <p id="modal-admin-note" class="modal-label hidden" style="color: #b45309; display:none;">管理者のみ着席できます</p>
 
                     <p class="modal-label" style="display: flex; align-items: center; gap: 0.5rem;">
                         <span>ラベルカラー</span>
@@ -245,6 +247,7 @@
                 </div>
             </div>
         </div>
+
     </div>
 
     <script src="script.js"></script>

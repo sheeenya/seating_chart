@@ -756,17 +756,28 @@ body.edit-mode .map-container-outer {
     top: 100%;
     left: 50%;
     transform: translate(-50%, 6px);
-    padding: 3px 6px;
+    display: inline-block; /* shrink-wrap to content */
+    padding: 6px 10px;
     border-radius: 8px;
     background: rgba(245, 158, 11, 0.16);
-    color: #fbbf24;
-    font-size: 0.68em;
-    text-align: center;
-    max-width: 200px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: #92400e; /* darker for contrast */
+    font-size: 0.8em;
+    text-align: center; /* center-align text */
+    width: auto; /* allow shrink-to-fit */
+    max-width: calc(10ch + 12px); /* cap at ~10 full-width chars */
+    white-space: normal; /* allow wrapping */
+    overflow-wrap: anywhere;
+    word-break: break-word;
     pointer-events: none;
+    box-shadow: var(--shadow-sm);
+    z-index: 6;
+    margin-top: 6px;
+}
+
+/* Improve contrast for light theme (white background) */
+body.light-theme .feedback-admin-comment {
+    background: rgba(245, 158, 11, 0.12);
+    color: #92400e;
 }
 
 @keyframes floatBubble {
@@ -1109,6 +1120,18 @@ button,
     transform: none;
 }
 
+/* Make primary buttons look disabled (grayed out) when disabled */
+.primary-btn:disabled,
+.primary-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(79,70,229,0.35));
+    color: rgba(255,255,255,0.8);
+    border-color: rgba(99,102,241,0.25);
+    box-shadow: none;
+    transform: none;
+}
+
 .secondary-btn.hidden {
     display: none;
 }
@@ -1215,3 +1238,5 @@ body.light-theme .color-option.selected {
         max-width: 95%;
     }
 }
+
+
