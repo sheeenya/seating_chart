@@ -917,9 +917,21 @@ body.dark-theme .feedback-admin-comment {
 
 .input-shake { animation: shake 300ms ease-in-out; }
 
-/* Make roadmap modal slightly wider */
-.roadmap-modal { max-width: 700px; }
+/* Make roadmap modal slightly wider and scrollable when content overflows */
+.roadmap-modal {
+    max-width: 700px;
+    width: min(96vw, 700px);
+    height: min(86vh, 720px);
+    display: flex;
+    flex-direction: column;
+}
 
+/* Ensure modal body scrolls independently so footer stays visible */
+.roadmap-modal .modal-body {
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+}
 
 @keyframes fadeIn {
     from {
