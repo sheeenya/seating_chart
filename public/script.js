@@ -67,6 +67,17 @@ const feedbackAdminPanel = document.getElementById('feedback-admin-panel');
 const feedbackAdminInput = document.getElementById('feedback-admin-input');
 const feedbackAdminSave = document.getElementById('feedback-admin-save');
 const feedbackAdminDelete = document.getElementById('feedback-admin-delete');
+const monitorToggleBtn = document.getElementById('monitor-toggle');
+const filterEmptyTwoMonitorsBtn = document.getElementById('filter-empty-two-monitors');
+const filterEmptyPrivacyBtn = document.getElementById('filter-empty-privacy');
+
+// Monitor admin elements
+const monitorAdminPanel = document.getElementById('monitor-admin-panel');
+const monitorCountSelect = document.getElementById('monitor-count-select');
+const monitorFilter1 = document.getElementById('monitor-filter-1');
+const monitorFilter2 = document.getElementById('monitor-filter-2');
+const monitorFilter2Wrap = document.getElementById('monitor-filter-2-wrap');
+const monitorSaveBtn = document.getElementById('monitor-save-btn');
 
 let currentRoadmap = { items: [] };
 let currentFeedback = { items: [] };
@@ -139,6 +150,8 @@ let lastLayoutJson = '';
 let lastTheme = '';
 let lastLayoutVersion = 0;
 let lastOccupancyVersion = 0;
+let monitorsVisible = true;
+const MONITOR_VISIBILITY_KEY = 'monitorVisibility';
 
 // Interaction state for throttling
 let isTransformPending = false;
@@ -156,6 +169,7 @@ let dragStartSeatId = null;
 // Initialize
 function init() {
     initTheme();
+    initMonitorVisibility();
     loadAllData();
     setInterval(() => {
         if (!isEditMode) fetchOccupancy();
@@ -166,9 +180,9 @@ function init() {
     setupAdminMode();
     setupRoadmap();
     setupFeedback();
-
-
-
+    setupMonitorAdminControls();
+    setupMonitorToggle();
+    setupSeatFilterButtons();
     setupThemeToggle();
     // setupDebugControls(); // Disabled for production
 
@@ -831,6 +845,79 @@ function refreshModalAdminState() {
         if (toggleBtn2) toggleBtn2.disabled = false;
         if (adminNoteEl) adminNoteEl.style.display = 'none';
     }
+
+    updateMonitorAdminPanel(seatDef);
+}
+
+function setupMonitorAdminControls() {
+    if (monitorCountSelect) {
+        monitorCountSelect.addEventListener('change', updateMonitorFilterVisibility);
+    }
+    if (monitorSaveBtn) {
+        monitorSaveBtn.addEventListener('click', saveMonitorSettings);
+    }
+}
+
+function getSeatMonitorCount(seat) {
+    const count = parseInt(seat && seat.monitorCount, 10);
+    return count === 2 ? 2 : 1;
+}
+
+function getSeatMonitorFilters(seat) {
+    const filters = Array.isArray(seat && seat.monitorFilters) ? seat.monitorFilters : [];
+    return [Boolean(filters[0]), Boolean(filters[1])];
+}
+
+function updateMonitorFilterVisibility() {
+    if (!monitorCountSelect) return;
+    const count = parseInt(monitorCountSelect.value, 10) === 2 ? 2 : 1;
+    if (monitorFilter2Wrap) {
+        monitorFilter2Wrap.style.display = count === 2 ? 'inline-flex' : 'none';
+    }
+    if (count !== 2 && monitorFilter2) {
+        monitorFilter2.checked = false;
+    }
+}
+
+function updateMonitorAdminPanel(seatDef) {
+    if (!monitorAdminPanel) return;
+    if (!adminModeEnabled) {
+        monitorAdminPanel.classList.add('hidden');
+        return;
+    }
+    monitorAdminPanel.classList.remove('hidden');
+
+    const count = getSeatMonitorCount(seatDef);
+    const filters = getSeatMonitorFilters(seatDef);
+    if (monitorCountSelect) monitorCountSelect.value = String(count);
+    if (monitorFilter1) monitorFilter1.checked = filters[0];
+    if (monitorFilter2) monitorFilter2.checked = filters[1];
+    updateMonitorFilterVisibility();
+}
+
+async function saveMonitorSettings() {
+    if (!adminModeEnabled) return;
+    const seatId = selectedSeatIdInput ? selectedSeatIdInput.value : null;
+    if (!seatId) return;
+    if (!monitorCountSelect) return;
+    const seatDef = (layoutData && Array.isArray(layoutData.seats)) ? layoutData.seats.find(s => s.id === seatId) : null;
+    if (!seatDef) return;
+
+    const count = parseInt(monitorCountSelect.value, 10) === 2 ? 2 : 1;
+    const filters = [
+        Boolean(monitorFilter1 && monitorFilter1.checked),
+        count === 2 && monitorFilter2 ? Boolean(monitorFilter2.checked) : false
+    ];
+
+    seatDef.monitorCount = count;
+    seatDef.monitorFilters = filters;
+    renderSeats();
+
+    try {
+        await saveLayoutData({ silent: true });
+    } catch (e) {
+        alert('モニター設定の保存に失敗しました');
+    }
 }
 
 function feedbackBubbleSize(score) {
@@ -1101,6 +1188,7 @@ function disableAdminMode() {
     updateToolbarVisibility();
     updateRoadmapAdminUI();
     updateFeedbackAdminUI();
+    refreshModalAdminState();
 
     // 編集モードが有効な場合は終了
     if (isEditMode) {
@@ -1254,7 +1342,9 @@ function createSeatAt(x, y) {
         y: y - height / 2,
         width,
         height,
-        rotation
+        rotation,
+        monitorCount: 1,
+        monitorFilters: [false, false]
     };
 
     layoutData.seats.push(newSeat);
@@ -1963,8 +2053,14 @@ function renderSeats(force = false) {
             seatEl.className = 'seat';
             seatEl.dataset.id = seat.id;
             seatEl.innerHTML = `
+                <div class="seat-monitors" data-count="1">
+                    <div class="seat-monitor"></div>
+                    <div class="seat-monitor"></div>
+                </div>
                 <div class="seat-occupant"></div>
-                <div class="seat-number-overlay">${getSeatDisplayLabel(seat.id)}</div>
+                <div class="seat-number-overlay">
+                    <span class="seat-number-text">${getSeatDisplayLabel(seat.id)}</span>
+                </div>
             `;
             if (seat.id.includes('外出-') || seat.id.includes('在宅-') || seat.id.includes('メモ-')) {
                 const numberEl = seatEl.querySelector('.seat-number-overlay');
@@ -1987,6 +2083,16 @@ function renderSeats(force = false) {
                 seatEl.classList.add('selected');
             } else {
                 seatEl.classList.remove('selected');
+            }
+
+            const monitorsEl = seatEl.querySelector('.seat-monitors');
+            if (monitorsEl) {
+                const count = getSeatMonitorCount(seat);
+                const filters = getSeatMonitorFilters(seat);
+                monitorsEl.dataset.count = String(count);
+                const monitorEls = monitorsEl.querySelectorAll('.seat-monitor');
+                if (monitorEls[0]) monitorEls[0].classList.toggle('filtered', filters[0]);
+                if (monitorEls[1]) monitorEls[1].classList.toggle('filtered', filters[1]);
             }
         }
 
@@ -2033,10 +2139,14 @@ function renderSeats(force = false) {
 
             const occupantEl = seatEl.querySelector('.seat-occupant');
             const numberEl = seatEl.querySelector('.seat-number-overlay');
+            const numberTextEl = numberEl ? numberEl.querySelector('.seat-number-text') : null;
             occupantEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
 
             if (!seat.id.includes('外出-') && !seat.id.includes('在宅-') && !seat.id.includes('メモ-')) {
-                numberEl.textContent = getSeatDisplayLabel(seat.id);
+                if (numberTextEl) {
+                    numberTextEl.textContent = getSeatDisplayLabel(seat.id);
+                    numberTextEl.style.transform = `rotate(${-seatRotation + textRotation}deg)`;
+                }
             }
         }
     });
@@ -2429,6 +2539,72 @@ function handleSearch() {
     if (match) { panToSeat(match[0]); highlightSeat(match[0]); }
 }
 
+function isSeatEmpty(seat) {
+    const occupant = occupancyData[seat.id];
+    return !(occupant && occupant.name);
+}
+
+function showSeatList(title, seats) {
+    if (!searchResults) return;
+    searchResults.innerHTML = '';
+    if (searchInput) searchInput.value = '';
+
+    const header = document.createElement('div');
+    header.className = 'search-result-item search-result-header';
+    header.textContent = `${title} (${seats.length})`;
+    searchResults.appendChild(header);
+
+    if (seats.length === 0) {
+        const emptyRow = document.createElement('div');
+        emptyRow.className = 'search-result-item';
+        emptyRow.textContent = '該当する空席はありません';
+        emptyRow.style.cursor = 'default';
+        searchResults.appendChild(emptyRow);
+        searchResults.classList.remove('hidden');
+        return;
+    }
+
+    const sorted = seats.slice().sort((a, b) => {
+        return getSeatDisplayLabel(a.id).localeCompare(getSeatDisplayLabel(b.id), 'ja');
+    });
+
+    sorted.forEach((seat) => {
+        const div = document.createElement('div');
+        div.className = 'search-result-item';
+        div.textContent = getSeatDisplayLabel(seat.id);
+        div.onclick = () => {
+            panToSeat(seat.id);
+            setTimeout(() => highlightSeat(seat.id), 100);
+            searchResults.classList.add('hidden');
+        };
+        searchResults.appendChild(div);
+    });
+
+    searchResults.classList.remove('hidden');
+}
+
+function setupSeatFilterButtons() {
+    if (filterEmptyTwoMonitorsBtn) {
+        filterEmptyTwoMonitorsBtn.addEventListener('click', () => {
+            const seats = (layoutData.seats || []).filter((seat) => {
+                return isSeatEmpty(seat) && getSeatMonitorCount(seat) === 2;
+            });
+            showSeatList('空席: モニター2枚', seats);
+        });
+    }
+
+    if (filterEmptyPrivacyBtn) {
+        filterEmptyPrivacyBtn.addEventListener('click', () => {
+            const seats = (layoutData.seats || []).filter((seat) => {
+                if (!isSeatEmpty(seat)) return false;
+                const filters = getSeatMonitorFilters(seat);
+                return filters.some(Boolean);
+            });
+            showSeatList('空席: プライバシーフィルタ', seats);
+        });
+    }
+}
+
 function panToSeat(id) {
     const seat = layoutData.seats.find(s => s.id == id);
     if (!seat) return;
@@ -2589,14 +2765,23 @@ async function clearAllOccupancyData() {
     }
 }
 
+async function saveLayoutData({ silent = false } = {}) {
+    const res = await fetch(API_LAYOUT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seats: layoutData.seats })
+    });
+    if (!res.ok) {
+        throw new Error('Failed to save layout');
+    }
+    if (!silent) {
+        alert('Saved.');
+    }
+}
+
 async function saveLayout() {
     try {
-        await fetch(API_LAYOUT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ seats: layoutData.seats })
-        });
-        alert('Saved.');
+        await saveLayoutData();
         isEditMode = false;
         document.body.classList.remove('edit-mode');
         setupEditMode(); // Refresh UI state
@@ -2778,6 +2963,8 @@ function openModal(seat) {
         userNameInput.disabled = false;
     }
 
+    updateMonitorAdminPanel(seatDef);
+
     // Generate color picker UI
     renderColorPicker();
 
@@ -2875,17 +3062,52 @@ function closeModal() {
     userNameInput.value = '';
 }
 
+// Monitor visibility toggle
+function initMonitorVisibility() {
+    const stored = localStorage.getItem(MONITOR_VISIBILITY_KEY);
+    monitorsVisible = stored !== 'off';
+    applyMonitorVisibility();
+}
+
+function applyMonitorVisibility() {
+    document.body.classList.toggle('monitors-off', !monitorsVisible);
+    if (monitorToggleBtn) {
+        monitorToggleBtn.classList.toggle('active', monitorsVisible);
+        monitorToggleBtn.setAttribute('aria-pressed', monitorsVisible ? 'true' : 'false');
+        const label = monitorsVisible ? 'モニター表示: ON' : 'モニター表示: OFF';
+        monitorToggleBtn.setAttribute('title', label);
+        monitorToggleBtn.setAttribute('aria-label', label);
+    }
+}
+
+function toggleMonitorVisibility() {
+    monitorsVisible = !monitorsVisible;
+    localStorage.setItem(MONITOR_VISIBILITY_KEY, monitorsVisible ? 'on' : 'off');
+    applyMonitorVisibility();
+}
+
+function setupMonitorToggle() {
+    if (monitorToggleBtn) {
+        monitorToggleBtn.addEventListener('click', toggleMonitorVisibility);
+    }
+}
+
 // Theme Management
 let currentTheme = localStorage.getItem('theme') || 'dark';
 
+function applyThemeClass() {
+    document.body.classList.toggle('dark-theme', currentTheme === 'dark');
+    document.body.classList.toggle('light-theme', currentTheme === 'light');
+}
+
 function initTheme() {
-    document.body.className = currentTheme + '-theme';
+    applyThemeClass();
     updateThemeIcon();
 }
 
 function toggleTheme() {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    document.body.className = currentTheme + '-theme';
+    applyThemeClass();
     localStorage.setItem('theme', currentTheme);
     updateThemeIcon();
 

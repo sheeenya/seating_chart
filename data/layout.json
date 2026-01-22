@@ -124,7 +124,12 @@
       "y": 2856.8400898839864,
       "width": 94,
       "height": 62,
-      "rotation": 90
+      "rotation": 90,
+      "monitorCount": 2,
+      "monitorFilters": [
+        false,
+        false
+      ]
     },
     {
       "id": "A-15",
@@ -358,7 +363,12 @@
       "y": 2379.2693222881912,
       "width": 94,
       "height": 62,
-      "rotation": 0
+      "rotation": 0,
+      "monitorCount": 2,
+      "monitorFilters": [
+        true,
+        false
+      ]
     },
     {
       "id": "A-41",
@@ -367,7 +377,12 @@
       "y": 2379.2693222881912,
       "width": 94,
       "height": 62,
-      "rotation": 0
+      "rotation": 0,
+      "monitorCount": 1,
+      "monitorFilters": [
+        true,
+        false
+      ]
     },
     {
       "id": "A-42",
