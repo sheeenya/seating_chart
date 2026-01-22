@@ -604,6 +604,10 @@ body.light-theme .seat-number-overlay {
     z-index: 4;
 }
 
+.seat-monitors[data-count="0"] {
+    display: none;
+}
+
 body.monitors-off .seat-monitors {
     display: none;
 }

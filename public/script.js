@@ -858,21 +858,33 @@ function setupMonitorAdminControls() {
     }
 }
 
+function isNoMonitorSeat(seat) {
+    const label = (seat && seat.label ? String(seat.label).trim() : '');
+    return label === '在宅' || label === '外出';
+}
+
 function getSeatMonitorCount(seat) {
+    if (isNoMonitorSeat(seat)) return 0;
     const count = parseInt(seat && seat.monitorCount, 10);
+    if (count === 0) return 0;
     return count === 2 ? 2 : 1;
 }
 
 function getSeatMonitorFilters(seat) {
+    if (isNoMonitorSeat(seat)) return [false, false];
     const filters = Array.isArray(seat && seat.monitorFilters) ? seat.monitorFilters : [];
     return [Boolean(filters[0]), Boolean(filters[1])];
 }
 
 function updateMonitorFilterVisibility() {
     if (!monitorCountSelect) return;
-    const count = parseInt(monitorCountSelect.value, 10) === 2 ? 2 : 1;
+    const rawCount = parseInt(monitorCountSelect.value, 10);
+    const count = rawCount === 2 ? 2 : rawCount === 0 ? 0 : 1;
     if (monitorFilter2Wrap) {
         monitorFilter2Wrap.style.display = count === 2 ? 'inline-flex' : 'none';
+    }
+    if (count === 0 && monitorFilter1) {
+        monitorFilter1.checked = false;
     }
     if (count !== 2 && monitorFilter2) {
         monitorFilter2.checked = false;
@@ -903,11 +915,26 @@ async function saveMonitorSettings() {
     const seatDef = (layoutData && Array.isArray(layoutData.seats)) ? layoutData.seats.find(s => s.id === seatId) : null;
     if (!seatDef) return;
 
-    const count = parseInt(monitorCountSelect.value, 10) === 2 ? 2 : 1;
-    const filters = [
-        Boolean(monitorFilter1 && monitorFilter1.checked),
-        count === 2 && monitorFilter2 ? Boolean(monitorFilter2.checked) : false
-    ];
+    if (isNoMonitorSeat(seatDef)) {
+        seatDef.monitorCount = 0;
+        seatDef.monitorFilters = [false, false];
+        renderSeats();
+        try {
+            await saveLayoutData({ silent: true });
+        } catch (e) {
+            alert('モニター設定の保存に失敗しました');
+        }
+        return;
+    }
+
+    const rawCount = parseInt(monitorCountSelect.value, 10);
+    const count = rawCount === 2 ? 2 : rawCount === 0 ? 0 : 1;
+    const filters = count === 0
+        ? [false, false]
+        : [
+            Boolean(monitorFilter1 && monitorFilter1.checked),
+            count === 2 && monitorFilter2 ? Boolean(monitorFilter2.checked) : false
+        ];
 
     seatDef.monitorCount = count;
     seatDef.monitorFilters = filters;
