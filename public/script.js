@@ -22,6 +22,7 @@ const resetZoomBtn = document.getElementById('reset-zoom');
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
 const searchResults = document.getElementById('search-results');
+const searchContainer = document.querySelector('.search-container');
 
 const toggleEditModeBtn = document.getElementById('toggle-edit-mode');
 const saveLayoutBtn = document.getElementById('save-layout-btn');
@@ -1944,6 +1945,9 @@ function handleSeatMoveEnd(e) {
 
 async function movePerson(fromSeatId, toSeatId, personName) {
     try {
+        const fromOccupant = occupancyData[fromSeatId];
+        const colorIndex = (fromOccupant && fromOccupant.colorIndex !== undefined) ? fromOccupant.colorIndex : 0;
+
         // Remove from old seat
         await fetch(API_OCCUPANCY_LEAVE_URL, {
             method: 'POST',
@@ -1955,13 +1959,14 @@ async function movePerson(fromSeatId, toSeatId, personName) {
         await fetch(API_OCCUPANCY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ seatId: toSeatId, name: personName })
+            body: JSON.stringify({ seatId: toSeatId, name: personName, colorIndex })
         });
 
         // Update local data
         delete occupancyData[fromSeatId];
         occupancyData[toSeatId] = {
             name: personName,
+            colorIndex,
             timestamp: new Date().toISOString()
         };
 
@@ -2352,6 +2357,7 @@ function setupZoomPan() {
     searchBtn.addEventListener('click', () => handleSearch());
     searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSearch(); });
     searchInput.addEventListener('input', handleSearchInput);
+    document.addEventListener('click', handleSearchResultsOutsideClick);
 
     function rotateView() {
         viewRotation = (viewRotation + 90) % 360;
@@ -2555,6 +2561,15 @@ function handleSearchInput() {
         });
         searchResults.classList.remove('hidden');
     } else { searchResults.classList.add('hidden'); }
+}
+
+function handleSearchResultsOutsideClick(e) {
+    if (!searchResults || searchResults.classList.contains('hidden')) return;
+    const target = e.target;
+    if (searchContainer && searchContainer.contains(target)) return;
+    if (filterEmptyTwoMonitorsBtn && filterEmptyTwoMonitorsBtn.contains(target)) return;
+    if (filterEmptyPrivacyBtn && filterEmptyPrivacyBtn.contains(target)) return;
+    searchResults.classList.add('hidden');
 }
 
 function handleSearch() {
